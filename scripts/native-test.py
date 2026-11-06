@@ -30,11 +30,18 @@ ShellRoot {
   Emojis {
     id: picker
     historyPath: %s
-    copyCommand: [test.phase === "copy-failure" ? "false" : "true"]
+    copyCommand: test.phase === "start-failure" ? ["/nonexistent/omoji-copy"]
+      : test.phase === "reopen" ? ["bash", "-c", "sleep 0.3"]
+      : [test.phase === "copy-failure" ? "false" : "true"]
+    Component.onCompleted: {
+      // Exercise lifecycle calls without taking the user's keyboard focus.
+      var panel = picker.data.find(function(item) { return item.objectName === "omoji-window" })
+      panel.shown = false
+    }
     onCopied: function(emoji) {
-      if (test.phase === "copy-failure") test.fail("failed copy was recorded")
+      if (test.phase === "copy-failure" || test.phase === "start-failure") test.fail("failed copy was recorded")
       picker.rebuild()
-      if (test.phase !== "corrupt" && picker.results[0].n !== "rose") test.fail("choice did not become first")
+      if (test.phase !== "corrupt" && test.phase !== "reopen" && picker.results[0].n !== "rose") test.fail("choice did not become first")
       test.finished = true
     }
   }
@@ -44,9 +51,15 @@ ShellRoot {
     repeat: true
     onTriggered: {
       if (++test.ticks > 160) { test.fail("timed out waiting for catalog/history"); return }
-      if (test.finished) { console.log("NATIVE PASS:", test.phase); Qt.quit(); return }
+      if (test.finished) {
+        if (test.phase === "reopen" && (!picker.opened || picker.filterText !== "heart")) {
+          test.fail("old copy completion dismissed the new search"); return
+        }
+        console.log("NATIVE PASS:", test.phase); Qt.quit(); return
+      }
       if (!picker.catalog.length || (!picker.historyReady && !picker.learningError) || test.started) return
       test.started = true
+      if (test.phase === "reopen") picker.open("{}")
       picker.filterText = "flower"
       picker.rebuild()
       if (test.phase === "restart" && picker.results[0].n !== "rose") { test.fail("learning lost after restart"); return }
@@ -58,11 +71,16 @@ ShellRoot {
   }
   Timer {
     interval: 300
-    running: test.started && test.phase === "copy-failure"
+    running: test.started && (test.phase === "copy-failure" || test.phase === "start-failure")
     onTriggered: {
       if (!picker.error) test.fail("copy failure was hidden")
-      else { console.log("NATIVE PASS: copy-failure"); Qt.quit() }
+      else { console.log("NATIVE PASS:", test.phase); Qt.quit() }
     }
+  }
+  Timer {
+    interval: 50
+    running: test.started && test.phase === "reopen"
+    onTriggered: { picker.dismiss(); picker.open("{}"); picker.filterText = "heart" }
   }
 }
 ''' % (json.dumps(phase), json.dumps(str(state))))
@@ -78,7 +96,7 @@ ShellRoot {
 
 def main():
     omarchy_path = Path(os.environ.get("OMARCHY_PATH", "/usr/share/omarchy"))
-    with tempfile.TemporaryDirectory(prefix="oma-emoji-native-") as directory:
+    with tempfile.TemporaryDirectory(prefix="omoji-native-") as directory:
         state = Path(directory) / "state/history.json"
         run_case(directory, state, "first-pick", omarchy_path)
         assert json.loads(state.read_text())["choices"][0]["count"] == 1
@@ -89,12 +107,18 @@ def main():
         failed_state = Path(directory) / "failed/history.json"
         run_case(directory, failed_state, "copy-failure", omarchy_path)
         assert json.loads(failed_state.read_text())["choices"] == []
+        start_failed_state = Path(directory) / "start-failed/history.json"
+        run_case(directory, start_failed_state, "start-failure", omarchy_path)
+        assert json.loads(start_failed_state.read_text())["choices"] == []
+        reopen_state = Path(directory) / "reopen-state/history.json"
+        run_case(directory, reopen_state, "reopen", omarchy_path)
+        assert json.loads(reopen_state.read_text())["choices"][0]["query"] == "flower"
         corrupt = Path(directory) / "corrupt-state/history.json"
         corrupt.parent.mkdir()
         corrupt.write_text("{invalid")
         run_case(directory, corrupt, "corrupt", omarchy_path)
         assert corrupt.read_text() == "{invalid"
-        print("Native persistence, restart, permissions, copy failure, and corruption checks passed")
+        print("Native persistence, restart, permissions, copy failures, reopen lifecycle, and corruption checks passed")
 
 
 if __name__ == "__main__":

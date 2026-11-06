@@ -14,11 +14,12 @@ Item {
   property var shell: null
   property var manifest: null
   property bool opened: false
+  property int opening: 0
   property alias filterText: searchInput.text
   property var catalog: []
   property var results: []
   property string error: ""
-  property string historyPath: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/oma-emoji/history.json"
+  property string historyPath: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omoji/history.json"
   property var copyCommand: ["wl-copy", "--type", "text/plain"]
   readonly property bool historyReady: history.ready
   readonly property string learningError: history.error
@@ -29,6 +30,7 @@ Item {
   signal copied(string emoji)
 
   function open(payloadJson) {
+    root.opening += 1
     root.error = ""
     searchInput.text = ""
     root.opened = true
@@ -42,7 +44,7 @@ Item {
 
   function dismiss() {
     root.close()
-    if (root.shell) root.shell.hide(root.manifest ? root.manifest.id : "akshar.oma-emoji")
+    if (root.shell) root.shell.hide(root.manifest ? root.manifest.id : "akshar.omoji")
   }
 
   function rebuild() {
@@ -63,7 +65,10 @@ Item {
     if (copyProcess.running || (!history.ready && !history.error) || index < 0 || index >= root.results.length) return
     copyProcess.query = root.filterText
     copyProcess.emoji = root.results[index].e
-    copyProcess.command = root.copyCommand.concat([copyProcess.emoji])
+    copyProcess.opening = root.opening
+    // Bash reports an unavailable clipboard command as an exit code; Process
+    // itself has no QML signal for a command that fails to start.
+    copyProcess.command = ["bash", "-c", 'exec "$@"', "omoji-copy"].concat(root.copyCommand, [copyProcess.emoji])
     copyProcess.running = true
   }
 
@@ -101,7 +106,7 @@ Item {
         if (root.opened) root.rebuild()
       } catch (failure) {
         root.error = strings.t("catalogFailed")
-        console.warn("Oma Emoji:", failure)
+        console.warn("omoji:", failure)
       }
     }
     onLoadFailed: root.error = strings.t("catalogFailed")
@@ -111,14 +116,15 @@ Item {
     id: copyProcess
     property string query: ""
     property string emoji: ""
+    property int opening: 0
     onExited: function(code) {
       if (code !== 0) {
-        root.error = strings.t("copyFailed")
+        if (copyProcess.opening === root.opening) root.error = strings.t("copyFailed")
         return
       }
       history.remember(copyProcess.query, copyProcess.emoji)
       root.copied(copyProcess.emoji)
-      root.dismiss()
+      if (root.opened && copyProcess.opening === root.opening) root.dismiss()
     }
   }
 
@@ -126,16 +132,16 @@ Item {
 
   OverlayWindow {
     id: panel
-    objectName: "oma-emoji-window"
+    objectName: "omoji-window"
     shown: root.opened
-    WlrLayershell.namespace: "oma-emoji"
+    WlrLayershell.namespace: "omarchy-emojis"
 
     Rectangle { anchors.fill: parent; color: Commons.Color.menu.scrim }
     MouseArea { anchors.fill: parent; onClicked: root.dismiss() }
 
     BorderSurface {
       id: card
-      objectName: "oma-emoji-card"
+      objectName: "omoji-card"
       width: Math.min(Style.space(640), panel.width - Style.gapsOut * 2)
       height: Math.min(Style.space(484), panel.height - Style.gapsOut * 2)
       anchors.centerIn: parent
@@ -279,7 +285,7 @@ Item {
           Text {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            text: root.error || (history.error ? strings.t("learningFailed") : "Oma Emoji")
+            text: root.error || (history.error ? strings.t("learningFailed") : "omoji")
             textFormat: Text.PlainText
             color: Commons.Color.menu.text
             opacity: 0.6

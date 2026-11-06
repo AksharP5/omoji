@@ -6,7 +6,7 @@ import "EmojiSearch.js" as EmojiSearch
 Item {
   id: store
 
-  property string path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/oma-emoji/history.json"
+  property string path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omoji/history.json"
   property var choices: []
   property bool ready: false
   property string error: ""
@@ -17,7 +17,7 @@ Item {
       store.ready = true
     } catch (failure) {
       store.error = String(failure)
-      console.warn("Oma Emoji: keeping unreadable history untouched:", store.path, store.error)
+      console.warn("omoji: keeping unreadable history untouched:", store.path, store.error)
     }
   }
 
@@ -34,7 +34,7 @@ Item {
       if (code === 0) historyFile.path = store.path
       else {
         store.error = "Cannot prepare history file"
-        console.warn("Oma Emoji:", store.error, store.path)
+        console.warn("omoji:", store.error, store.path)
       }
     }
   }
@@ -48,11 +48,11 @@ Item {
     onLoaded: store.ingest(text())
     onLoadFailed: function(error) {
       store.error = "Cannot read history: " + FileViewError.toString(error)
-      console.warn("Oma Emoji:", store.error, store.path)
+      console.warn("omoji:", store.error, store.path)
     }
     onSaveFailed: function(error) {
       store.error = "Cannot save history: " + FileViewError.toString(error)
-      console.warn("Oma Emoji:", store.error, store.path)
+      console.warn("omoji:", store.error, store.path)
     }
   }
 }

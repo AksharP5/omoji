@@ -1,4 +1,4 @@
-# Oma Emoji
+# omoji
 
 A native emoji picker for [Omarchy](https://omarchy.org) that remembers what you mean.
 Inspired by [Omacast](https://github.com/typecraft-dev/oma-cast): fast keyboard search, learned choices, and your desktop's theme.
@@ -7,22 +7,22 @@ Search `flower`, choose rose, and rose comes first the next time you search `flo
 Learning stays specific to that search. The most-used choice wins; the most recent choice breaks ties.
 Opening the picker without a search shows your recent choices first.
 
-![Oma Emoji searching for flower after choosing rose](docs/screenshots/learned.png)
+![omoji searching for flower after choosing rose](docs/screenshots/learned.png)
 
 ## Install
 
-Requires Omarchy **4.5.0**, its Quickshell shell, and `wl-copy`, which Omarchy includes.
+Requires Omarchy **4.5.0**, its Quickshell shell, Bash, and `wl-copy`, which Omarchy includes.
 There are no runtime downloads or extra background services. Node and Python are development tools only.
 
 ```sh
-omarchy plugin add https://github.com/AksharP5/oma-emoji --enable
+omarchy plugin add https://github.com/AksharP5/omoji --enable
 ```
 
 Press **Ctrl+Super+E**. The plugin replaces `omarchy.emojis` through Omarchy's plugin API, so the existing shortcut and Emoji menu action open it. No Hyprland configuration edits are needed.
 
 If you already use another replacement for `omarchy.emojis`, disable that plugin first with `omarchy plugin disable <its-id>`. Omarchy can route the built-in shortcut to only one replacement.
 
-Update with `omarchy plugin update akshar.oma-emoji`.
+Update with `omarchy plugin update akshar.omoji`.
 
 ## Keyboard
 
@@ -44,13 +44,13 @@ Searches ignore case and repeated spaces. Each search and emoji pair has a use c
 Choices for `flower` have no effect on the order for `heart`. Exact name matches come before keyword matches when there is no learned preference.
 The picker keeps the 2,000 most recently used search and emoji pairs. This first version has no account, telemetry, or network access.
 
-History is stored in `${XDG_STATE_HOME:-~/.local/state}/oma-emoji/history.json` in a private directory with mode `0700`; the file has mode `0600`.
+History is stored in `${XDG_STATE_HOME:-~/.local/state}/omoji/history.json` in a private directory with mode `0700`; the file has mode `0600`.
 Writes are atomic. An unreadable file or an unknown history version disables learning and leaves the file untouched, while copying keeps working.
 
 ## Remove
 
 ```sh
-omarchy plugin remove akshar.oma-emoji
+omarchy plugin remove akshar.omoji
 ```
 
 Omarchy restores the built-in picker if this plugin disabled it. If you disabled another replacement yourself, re-enable that plugin to return to it.
@@ -59,15 +59,15 @@ Your learning history is kept. To reset it, close the picker, rename its history
 ## Development
 
 ```sh
-git clone https://github.com/AksharP5/oma-emoji
-cd oma-emoji
+git clone https://github.com/AksharP5/omoji
+cd omoji
 node --test tests/search.test.js
 omarchy plugin validate .
 python scripts/native-test.py
 python scripts/preview.py
 ```
 
-The native tests and preview require a running Omarchy Wayland session. They use a temporary shell host and temporary history, so they do not install the plugin or change your shortcut. Native tests replace only the clipboard command, exercise real QML and disk writes, and check persistence across restarts, private permissions, failed copies, and corrupt history.
+The native tests and preview require a running Omarchy Wayland session. They use a temporary shell host and temporary history, so they do not install the plugin or change your shortcut. Native tests replace the clipboard command, suppress window visibility, and exercise real QML and disk writes. They check persistence across restarts, private permissions, failed and missing clipboard commands, reopening during a copy, and corrupt history.
 
 `OMARCHY_PATH=/path/to/omarchy python scripts/native-test.py` checks against another Omarchy source checkout. Verified with the **v4.5.0** shell components and the installed **4.0.0.r7396.g526fe64-1** development build, using Quickshell **0.3.2.r7**. This does not claim compatibility with earlier stable Omarchy releases.
 

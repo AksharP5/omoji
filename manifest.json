@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "id": "akshar.oma-emoji",
-  "name": "Oma Emoji",
+  "id": "akshar.omoji",
+  "name": "omoji",
   "version": "0.1.0",
   "author": "Akshar",
   "description": "A keyboard-first emoji picker that learns what you choose for each search",

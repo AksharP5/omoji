@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run Oma Emoji without installing it or changing the user's shortcut."""
+"""Run omoji without installing it or changing the user's shortcut."""
 import argparse
 import json
 import os
@@ -25,7 +25,7 @@ def main():
     parser.add_argument("--query", default="")
     parser.add_argument("--learn", help="Seed a sample choice by its English emoji name")
     args = parser.parse_args()
-    with tempfile.TemporaryDirectory(prefix="oma-emoji-preview-") as directory:
+    with tempfile.TemporaryDirectory(prefix="omoji-preview-") as directory:
         state = Path(directory) / "state/history.json"
         if args.learn:
             catalog = json.loads((ROOT / "emojis.json").read_text())
@@ -63,7 +63,7 @@ ShellRoot {
     interval: 1000
     running: true
     onTriggered: {
-      var panel = picker.data.find(function(item) { return item.objectName === "oma-emoji-window" })
+      var panel = picker.data.find(function(item) { return item.objectName === "omoji-window" })
       var input = findItem(panel.contentItem, "emoji-search")
       input.text = query
       if (!capturePath) return
@@ -74,8 +74,8 @@ ShellRoot {
     id: captureTimer
     interval: 200
     onTriggered: {
-      var panel = picker.data.find(function(item) { return item.objectName === "oma-emoji-window" })
-      var card = findItem(panel.contentItem, "oma-emoji-card")
+      var panel = picker.data.find(function(item) { return item.objectName === "omoji-window" })
+      var card = findItem(panel.contentItem, "omoji-card")
       card.grabToImage(function(result) {
         if (!result.saveToFile(capturePath)) console.error("Could not save picker image")
         Qt.quit()
