@@ -1,0 +1,8 @@
+{
+  "search": "Search emoji...",
+  "empty": "No emoji found",
+  "copy": "Enter  Copy",
+  "copyFailed": "Could not copy. Try again.",
+  "catalogFailed": "Could not load emoji",
+  "learningFailed": "Learning unavailable"
+}
