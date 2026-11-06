@@ -70,7 +70,7 @@ ShellRoot {
     result = subprocess.run(["quickshell", "--no-color", "--path", str(host)], env=env, capture_output=True, text=True, timeout=12)
     output = result.stdout + result.stderr
     if result.returncode or "NATIVE PASS:" not in output or re.search(
-        r"Failed to load configuration|ReferenceError|TypeError|SyntaxError|Binding loop|Unable to assign|Cannot assign", output
+        r"ERROR:|ReferenceError|TypeError|Binding loop|Unable to assign|Cannot assign", output
     ):
         raise RuntimeError(output)
     print(f"PASS {phase}")
