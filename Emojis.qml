@@ -24,6 +24,7 @@ Item {
   property string preferencesPath: (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/omoji/config.json"
   readonly property string defaultAction: preferences.error ? "copy" : preferences.defaultAction
   readonly property string alternateAction: root.defaultAction === "paste" ? "copy" : "paste"
+  readonly property bool queryTooLong: searchInput.length > EmojiSearch.QUERY_LIMIT
   property alias preferencesReady: preferences.ready
   property alias preferencesError: preferences.error
   property bool settingsOpen: false
@@ -59,7 +60,9 @@ Item {
   }
 
   function rebuild() {
-    root.results = EmojiSearch.search(root.catalog, root.filterText, history.choices)
+    var query = root.filterText
+    // Derived QML bindings can update after the text-change handler.
+    root.results = query.length > EmojiSearch.QUERY_LIMIT ? [] : EmojiSearch.search(root.catalog, query, history.choices)
     resultList.currentIndex = root.results.length ? 0 : -1
     pointerGate.reset()
     resultList.positionViewAtBeginning()
@@ -73,7 +76,7 @@ Item {
   }
 
   function activate(index, action) {
-    if (root.settingsOpen || copyProcess.running || pasteDelay.running || pasteProcess.running || (!preferences.ready && !preferences.error) || (!history.ready && !history.error) || index < 0 || index >= root.results.length) return
+    if (root.settingsOpen || searchPaste.running || copyProcess.running || pasteDelay.running || pasteProcess.running || (!preferences.ready && !preferences.error) || (!history.ready && !history.error) || index < 0 || index >= root.results.length) return
     copyProcess.action = action === "copy" || action === "paste" ? action : root.defaultAction
     copyProcess.query = root.filterText
     copyProcess.emoji = root.results[index].e
@@ -94,6 +97,19 @@ Item {
     root.settingsOpen = false
     pointerGate.reset()
     Qt.callLater(function() { if (root.opened && !root.settingsOpen) searchInput.forceActiveFocus() })
+  }
+
+  function pasteSearch(primary) {
+    if (!root.opened || root.settingsOpen || searchPaste.running) return
+    root.error = ""
+    searchInput.forceActiveFocus()
+    searchPaste.opening = root.opening
+    searchPaste.query = searchInput.text
+    searchPaste.start = searchInput.selectionStart
+    searchPaste.end = searchInput.selectionEnd
+    searchPaste.command = ["bash", decodeURIComponent(String(Qt.resolvedUrl("scripts/read-clipboard")).replace(/^file:\/\//, ""))]
+      .concat(primary ? ["--primary"] : [])
+    searchPaste.running = true
   }
 
   function handleKey(event) {
@@ -141,6 +157,29 @@ Item {
       }
     }
     onLoadFailed: root.catalogError = translations.t("catalogFailed")
+  }
+
+  Process {
+    id: searchPaste
+    property int opening: 0
+    property string query: ""
+    property int start: 0
+    property int end: 0
+    stdout: StdioCollector { id: searchPasteOutput; waitForEnd: true }
+    onExited: function(code) {
+      if (!root.opened || root.settingsOpen || !searchInput.activeFocus || searchPaste.opening !== root.opening
+          || searchInput.text !== searchPaste.query || searchInput.selectionStart !== searchPaste.start || searchInput.selectionEnd !== searchPaste.end) return
+      var raw = searchPasteOutput.text
+      var text = raw.replace(/[\r\n\u2028\u2029]+/g, " ")
+      if (code !== 0 || raw.length > EmojiSearch.QUERY_LIMIT
+          || text.length + searchInput.length - (searchPaste.end - searchPaste.start) > EmojiSearch.QUERY_LIMIT) {
+        root.error = translations.t("searchPasteFailed")
+        return
+      }
+      if (!text) return
+      searchInput.cursorSelection.text = text
+      searchInput.cursorPosition = searchPaste.start + text.length
+    }
   }
 
   Process {
@@ -264,40 +303,78 @@ Item {
           width: parent.width
           height: Style.space(54)
 
-          TextInput {
-            id: searchInput
-            enabled: !root.settingsOpen
-            objectName: "emoji-search"
+          Flickable {
+            id: searchViewport
+            objectName: "emoji-search-viewport"
             anchors.left: parent.left
             anchors.right: settingsButton.left
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            verticalAlignment: TextInput.AlignVCenter
-            font.family: Style.font.menuFamily
-            font.pixelSize: Style.font.heading
-            color: Commons.Color.menu.text
-            selectionColor: Commons.Color.menu.selectedBackground
-            selectedTextColor: Commons.Color.menu.selectedText
-            maximumLength: 160
+            contentWidth: searchInput.width + searchInput.cursorRectangle.width
+            contentHeight: searchInput.height
             clip: true
-            focus: true
-            Accessible.name: translations.t("search")
-            onTextChanged: {
-              root.error = ""
-              root.rebuild()
+            interactive: false
+            onWidthChanged: revealCursor()
+            onContentWidthChanged: revealCursor()
+            function revealCursor() {
+              var rect = searchInput.cursorRectangle
+              contentX = Math.max(0, Math.min(contentX, rect.x, contentWidth - width))
+              if (contentX + width < rect.x + rect.width) contentX = rect.x + rect.width - width
+              contentY = Math.max(0, Math.min(contentY, rect.y, contentHeight - height))
+              if (contentY + height < rect.y + rect.height) contentY = rect.y + rect.height - height
             }
-            Keys.priority: Keys.BeforeItem
-            Keys.onPressed: function(event) { root.handleKey(event) }
-
-            Text {
-              anchors.fill: parent
-              verticalAlignment: Text.AlignVCenter
-              visible: !searchInput.text && !searchInput.preeditText
-              text: translations.t("search")
-              textFormat: Text.PlainText
+            TextEdit {
+              id: searchInput
+              enabled: !root.settingsOpen
+              objectName: "emoji-search"
+              width: Math.max(searchViewport.width, implicitWidth)
+              height: Math.max(searchViewport.height, implicitHeight)
+              verticalAlignment: TextEdit.AlignVCenter
+              textFormat: TextEdit.PlainText
+              wrapMode: TextEdit.NoWrap
+              font.family: Style.font.menuFamily
+              font.pixelSize: Style.font.heading
               color: Commons.Color.menu.text
-              opacity: 0.55
-              font: searchInput.font
+              selectionColor: Commons.Color.menu.selectedBackground
+              selectedTextColor: Commons.Color.menu.selectedText
+              focus: true
+              activeFocusOnTab: true
+              Accessible.name: translations.t("search")
+              onCursorRectangleChanged: searchViewport.revealCursor()
+              onTextChanged: {
+                root.error = ""
+                root.rebuild()
+              }
+              Keys.priority: Keys.BeforeItem
+              Keys.onPressed: function(event) {
+                if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+                  settingsButton.forceActiveFocus()
+                  event.accepted = true
+                } else if (event.matches(StandardKey.Paste)) {
+                  root.pasteSearch(false)
+                  event.accepted = true
+                } else root.handleKey(event)
+              }
+
+              MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.MiddleButton
+                onClicked: function(mouse) {
+                  searchInput.cursorPosition = searchInput.positionAt(mouse.x, mouse.y)
+                  root.pasteSearch(true)
+                }
+              }
+
+              Text {
+                anchors.fill: parent
+                verticalAlignment: Text.AlignVCenter
+                visible: !searchInput.text && !searchInput.preeditText
+                text: translations.t("search")
+                textFormat: Text.PlainText
+                color: Commons.Color.menu.text
+                opacity: 0.55
+                font: searchInput.font
+              }
             }
           }
           Button {
@@ -327,7 +404,7 @@ Item {
 
           ListView {
             id: resultList
-            enabled: !root.settingsOpen
+            enabled: !root.settingsOpen && !searchPaste.running
             opacity: root.settingsOpen ? 0.65 : 1
             objectName: "emoji-results"
             anchors.top: parent.top
@@ -408,7 +485,7 @@ Item {
             objectName: "emoji-empty"
             anchors.centerIn: parent
             visible: !root.results.length
-            text: root.error || root.catalogError || translations.t("empty")
+            text: root.error || root.catalogError || (root.queryTooLong ? translations.t("searchTooLong") : translations.t("empty"))
             textFormat: Text.PlainText
             color: Commons.Color.menu.text
             opacity: 0.6
@@ -425,7 +502,7 @@ Item {
           Text {
             id: statusText
             width: parent.width
-            text: root.error || (preferences.error ? translations.t("preferencesFailed") : history.error ? translations.t("learningFailed") : "")
+            text: root.error || (searchPaste.running ? translations.t("searchPasting") : preferences.error ? translations.t("preferencesFailed") : history.error ? translations.t("learningFailed") : "")
             textFormat: Text.PlainText
             wrapMode: Text.Wrap
             color: Commons.Color.menu.text

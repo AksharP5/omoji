@@ -3,14 +3,14 @@
 ```sh
 git clone https://github.com/AksharP5/omoji
 cd omoji
-node --test tests/search.test.js
+node --test tests/*.test.js
 omarchy plugin validate .
 python scripts/native-test.py
 ```
 
 Node and Python are development tools only. The picker runs in Omarchy's Quickshell shell.
 
-The native tests require a running Omarchy Wayland session. They use temporary history and preferences, replace clipboard and paste commands, and suppress the picker window. They cover both default actions, the opposite shortcut, saved preferences, learning across restarts, failed commands, cancellation when reopening, and corrupt files. Catalog failures stay visible after opening, typing, and reopening the picker.
+The native tests require a running Omarchy Wayland session. They use temporary history and preferences, replace clipboard and paste commands, and suppress the picker window. They cover both default actions, the opposite shortcut, saved preferences, learning across restarts, failed commands, cancellation when reopening, and corrupt files. Catalog failures stay visible after opening, typing, and reopening the picker. Search editing checks cover query limits without losing text or undo history, and keep the cursor visible in long queries.
 
 To check another Omarchy checkout:
 
