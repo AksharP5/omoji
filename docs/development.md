@@ -20,6 +20,14 @@ OMARCHY_PATH=/path/to/omarchy python scripts/native-test.py
 
 The supported targets are Omarchy v4.5.0 and 4.0.0.r7396.g526fe64-1 with Quickshell 0.3.2.r7. Real keyboard and paste checks should run in an isolated desktop so they do not alter personal history or the system clipboard.
 
+## Keyboard regression checks
+
+Use a separate Wayland compositor and private D-Bus session with temporary state. A hidden window does not isolate crash dialogs or clipboard access. Use normal keyboard input; do not load experimental native Qt plugins or move shell-owned items into another window to simulate focus.
+
+1. Open the picker and type a query. Press Tab to focus the gear, then Esc. The query clears and typing returns to search.
+2. With an empty query, focus the gear and press Esc. The picker closes.
+3. Open settings with `?`, then press Esc. The original query stays intact and search regains focus.
+
 ## Native screenshots
 
 These previews use the actual QML with temporary data. They do not install the plugin or replace your shortcut.
