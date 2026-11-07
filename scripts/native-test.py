@@ -35,7 +35,7 @@ ShellRoot {
     id: picker
     historyPath: %s
     preferencesPath: %s
-    pasteCommand: ["paste-failure", "paste-settings-failure"].indexOf(test.phase) !== -1 ? ["false"]
+    pasteCommand: test.phase === "paste-failure" ? ["false"]
       : test.phase === "paste-start-failure" ? ["/nonexistent/omoji-paste"]
       : ["bash", "-c", 'printf paste > "$1"', "test", %s]
     copyCommand: test.phase === "start-failure" ? ["/nonexistent/omoji-copy"]
@@ -76,7 +76,7 @@ ShellRoot {
       test.started = true
       if (test.phase === "choose-default") {
         if (picker.defaultAction !== "paste") { test.fail("fresh default was not paste"); return }
-        picker.handleKey({ key: Qt.Key_Comma, modifiers: Qt.ControlModifier })
+        picker.handleKey({ key: Qt.Key_Question, modifiers: Qt.ShiftModifier })
         if (!picker.settingsOpen) { test.fail("settings shortcut failed"); return }
         picker.data.find(function(item) { return item.objectName === "omoji-preferences" }).choose("copy")
         if (picker.defaultAction !== "copy") { test.fail("default did not change"); return }
@@ -87,7 +87,7 @@ ShellRoot {
       }
       if (test.phase === "preference-restart" && picker.defaultAction !== "copy") { test.fail("default lost on restart"); return }
       if (test.phase === "invalid-preferences" && (!picker.preferencesError || picker.defaultAction !== "copy")) { test.fail("invalid preferences did not safely fall back"); return }
-      if (["reopen", "paste", "ctrl-copy", "ctrl-paste", "paste-failure", "paste-settings-failure", "paste-start-failure", "paste-reopen"].indexOf(test.phase) !== -1) picker.open("{}")
+      if (["reopen", "paste", "ctrl-copy", "ctrl-paste", "paste-failure", "settings-no-activation", "paste-start-failure", "paste-reopen"].indexOf(test.phase) !== -1) picker.open("{}")
       picker.filterText = "flower"
       picker.rebuild()
       if (test.phase === "restart" && picker.results[0].n !== "rose") { test.fail("learning lost after restart"); return }
@@ -99,17 +99,27 @@ ShellRoot {
         picker.handleKey({ key: Qt.Key_Return, modifiers: Qt.ControlModifier })
         if (picker.defaultAction !== (test.phase === "ctrl-copy" ? "paste" : "copy")) test.fail("Ctrl+Enter changed default")
       } else {
-        if (test.phase === "paste-settings-failure") picker.toggleSettings()
-        picker.activate(index)
+        if (test.phase === "settings-no-activation") {
+          picker.toggleSettings()
+          picker.handleKey({ key: Qt.Key_Return, modifiers: Qt.ControlModifier })
+        } else picker.activate(index)
       }
     }
   }
   Timer {
     interval: 300
-    running: test.started && (["copy-failure", "start-failure", "paste-failure", "paste-settings-failure", "paste-start-failure"].indexOf(test.phase) !== -1)
+    running: test.started && (["copy-failure", "start-failure", "paste-failure", "paste-start-failure"].indexOf(test.phase) !== -1)
     onTriggered: {
       if (!picker.error) test.fail("action failure was hidden")
       else if (test.phase.indexOf("paste-") === 0 && (!picker.opened || picker.settingsOpen)) test.fail("paste failure did not restore search")
+      else { console.log("NATIVE PASS:", test.phase); Qt.quit() }
+    }
+  }
+  Timer {
+    interval: 300
+    running: test.started && test.phase === "settings-no-activation"
+    onTriggered: {
+      if (!picker.opened || !picker.settingsOpen || picker.error) test.fail("settings action leaked to picker")
       else { console.log("NATIVE PASS:", test.phase); Qt.quit() }
     }
   }
@@ -159,7 +169,7 @@ def main():
         corrupt.write_text("{invalid")
         run_case(directory, corrupt, "corrupt", omarchy_path)
         assert corrupt.read_text() == "{invalid"
-        for phase in ["paste", "ctrl-copy", "ctrl-paste", "paste-failure", "paste-settings-failure", "paste-start-failure", "paste-reopen"]:
+        for phase in ["paste", "ctrl-copy", "ctrl-paste", "paste-failure", "settings-no-activation", "paste-start-failure", "paste-reopen"]:
             action_state = Path(directory) / phase / "history.json"
             run_case(directory, action_state, phase, omarchy_path)
             choices = json.loads(action_state.read_text())["choices"]

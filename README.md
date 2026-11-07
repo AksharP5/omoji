@@ -17,6 +17,8 @@ Inspired by [Omacast](https://github.com/typecraft-dev/oma-cast).
 
 ## Install
 
+[View omoji in the plugin marketplace](https://plugins.omarchy.org/plugin.html?id=akshar.omoji), or install it directly:
+
 ```sh
 omarchy plugin add https://github.com/AksharP5/omoji --enable
 ```
@@ -30,7 +32,7 @@ Tested on Omarchy **4.5.0** and **4.0.0.r7396.g526fe64-1**. Uses the Quickshell,
 
 ## Make Enter work your way
 
-Click the **gear** beside search, or press **Ctrl+,**. Choose **Copy** or **Paste**. It saves automatically.
+Press **?** or click the **gear** beside search. Press **C** for Copy or **P** for Paste. It saves automatically.
 
 <img src="docs/screenshots/settings.png" alt="Action settings with Paste selected and a preview of Enter and Ctrl+Enter" width="640">
 
@@ -54,10 +56,10 @@ Pasting sends **Shift+Insert** after the picker closes, as Omarchy does. The emo
 | Page Up / Page Down | Move a page |
 | Enter | Use your default action |
 | Ctrl+Enter | Use the opposite action for this pick |
-| Ctrl+, | Open or close settings |
+| ? / Ctrl+, | Open or close settings |
 | Esc | Leave settings, clear the search, then close |
 
-In settings, use **Up/Down** or **Tab** to focus a choice and **Enter** to select it.
+In settings, **C** selects Copy and **P** selects Paste immediately. You can also use **Up/Down** or **Tab**, then **Enter** or **Space** to select. Press **Esc** to return to your search. Emoji actions are suspended while settings is open.
 
 ## Learning and privacy
 

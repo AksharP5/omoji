@@ -71,7 +71,7 @@ Item {
   }
 
   function activate(index, action) {
-    if (copyProcess.running || pasteDelay.running || pasteProcess.running || (!preferences.ready && !preferences.error) || (!history.ready && !history.error) || index < 0 || index >= root.results.length) return
+    if (root.settingsOpen || copyProcess.running || pasteDelay.running || pasteProcess.running || (!preferences.ready && !preferences.error) || (!history.ready && !history.error) || index < 0 || index >= root.results.length) return
     copyProcess.action = action === "copy" || action === "paste" ? action : root.defaultAction
     copyProcess.query = root.filterText
     copyProcess.emoji = root.results[index].e
@@ -95,7 +95,7 @@ Item {
         searchInput.forceActiveFocus()
       } else if (searchInput.text) searchInput.clear()
       else root.dismiss()
-    } else if (event.modifiers === Qt.ControlModifier && event.key === Qt.Key_Comma) {
+    } else if (event.key === Qt.Key_Question || (event.modifiers === Qt.ControlModifier && event.key === Qt.Key_Comma)) {
       root.toggleSettings()
     } else if (event.key === Qt.Key_Down || (event.modifiers === Qt.ControlModifier && event.key === Qt.Key_N)) {
       root.moveSelection(1)
@@ -201,13 +201,26 @@ Item {
     Shortcut {
       sequences: ["Ctrl+Return", "Ctrl+Enter"]
       enabled: root.opened
+      // Consume Ctrl+Enter in settings too, so a focused Button cannot treat
+      // it as plain Enter. activate() only acts on the visible results view.
       onActivated: root.activate(resultList.currentIndex, root.alternateAction)
     }
 
     Shortcut {
-      sequence: "Ctrl+,"
+      sequences: ["Ctrl+,", "?"]
       enabled: root.opened
       onActivated: root.toggleSettings()
+    }
+
+    Shortcut {
+      sequence: "C"
+      enabled: root.opened && root.settingsOpen && preferences.ready && !preferences.error
+      onActivated: actionSettings.choose("copy")
+    }
+    Shortcut {
+      sequence: "P"
+      enabled: root.opened && root.settingsOpen && preferences.ready && !preferences.error
+      onActivated: actionSettings.choose("paste")
     }
 
     Rectangle { anchors.fill: parent; color: Commons.Color.menu.scrim }
@@ -295,11 +308,11 @@ Item {
             objectName: "omoji-settings-toggle"
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.settingsOpen ? translations.t("done") : ""
+            text: root.settingsOpen ? translations.t("done") : "?"
             iconText: root.settingsOpen ? "" : "\uf013"
             tooltipText: root.settingsOpen ? translations.t("backToSearch") : translations.t("settingsShortcut")
             Accessible.name: root.settingsOpen ? translations.t("done") : translations.t("settings")
-            fontSize: Style.font.body
+            fontSize: Style.font.caption
             iconSize: Style.font.title
             foreground: Commons.Color.menu.text
             focusable: true
@@ -317,6 +330,7 @@ Item {
 
           ActionSettings {
             id: actionSettings
+            objectName: "omoji-action-settings"
             anchors.fill: parent
             visible: root.settingsOpen
             strings: translations
