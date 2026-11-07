@@ -4,9 +4,11 @@ umask 077
 
 state_file=$1
 state_dir=$(dirname -- "$state_file")
+initial_json='{"version":1,"choices":[]}'
+if [[ $# -ge 2 ]]; then initial_json=$2; fi
 mkdir -p -- "$state_dir"
 chmod 700 -- "$state_dir"
 if [[ ! -e $state_file ]]; then
-  (set -o noclobber; printf '{"version":1,"choices":[]}\n' > "$state_file")
+  (set -o noclobber; printf '%s\n' "$initial_json" > "$state_file")
 fi
 chmod 600 -- "$state_file"

@@ -20,6 +20,12 @@ Item {
   property var results: []
   property string error: ""
   property string historyPath: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omoji/history.json"
+  property string preferencesPath: (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/omoji/config.json"
+  readonly property string defaultAction: preferences.error ? "copy" : preferences.defaultAction
+  property alias preferencesReady: preferences.ready
+  property alias preferencesError: preferences.error
+  property bool settingsOpen: false
+  property var pasteCommand: ["wtype", "-M", "shift", "-k", "Insert", "-m", "shift"]
   property var copyCommand: ["wl-copy", "--type", "text/plain"]
   readonly property bool historyReady: history.ready
   readonly property string learningError: history.error
@@ -28,10 +34,12 @@ Item {
   readonly property int padding: Style.spacing.panelPadding
 
   signal copied(string emoji)
+  signal pasted(string emoji)
 
   function open(payloadJson) {
     root.opening += 1
     root.error = ""
+    root.settingsOpen = false
     searchInput.text = ""
     root.opened = true
     root.rebuild()
@@ -61,8 +69,9 @@ Item {
     pointerGate.reset()
   }
 
-  function activate(index) {
-    if (copyProcess.running || (!history.ready && !history.error) || index < 0 || index >= root.results.length) return
+  function activate(index, action) {
+    if (copyProcess.running || pasteDelay.running || pasteProcess.running || (!preferences.ready && !preferences.error) || (!history.ready && !history.error) || index < 0 || index >= root.results.length) return
+    copyProcess.action = action === "copy" ? "copy" : root.defaultAction
     copyProcess.query = root.filterText
     copyProcess.emoji = root.results[index].e
     copyProcess.opening = root.opening
@@ -74,8 +83,15 @@ Item {
 
   function handleKey(event) {
     if (event.key === Qt.Key_Escape) {
-      if (searchInput.text) searchInput.clear()
+      if (root.settingsOpen) {
+        root.settingsOpen = false
+        searchInput.forceActiveFocus()
+      } else if (searchInput.text) searchInput.clear()
       else root.dismiss()
+    } else if (event.modifiers === Qt.ControlModifier && event.key === Qt.Key_Comma) {
+      root.settingsOpen = !root.settingsOpen
+      if (root.settingsOpen) actionOptions.forceActiveFocus()
+      else searchInput.forceActiveFocus()
     } else if (event.key === Qt.Key_Down || (event.modifiers === Qt.ControlModifier && event.key === Qt.Key_N)) {
       root.moveSelection(1)
     } else if (event.key === Qt.Key_Up || (event.modifiers === Qt.ControlModifier && event.key === Qt.Key_P)) {
@@ -83,7 +99,7 @@ Item {
     } else if (event.key === Qt.Key_PageDown || event.key === Qt.Key_PageUp) {
       root.moveSelection((event.key === Qt.Key_PageDown ? 1 : -1) * Math.max(1, Math.floor(resultList.height / root.rowHeight)))
     } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-      root.activate(resultList.currentIndex)
+      root.activate(resultList.currentIndex, event.modifiers & Qt.ControlModifier ? "copy" : root.defaultAction)
     } else {
       return
     }
@@ -97,6 +113,8 @@ Item {
     path: root.historyPath
     onChoicesChanged: if (root.opened) root.rebuild()
   }
+
+  PreferencesStore { id: preferences; objectName: "omoji-preferences"; path: root.preferencesPath }
 
   FileView {
     path: Qt.resolvedUrl("emojis.json")
@@ -114,6 +132,7 @@ Item {
 
   Process {
     id: copyProcess
+    property string action: "copy"
     property string query: ""
     property string emoji: ""
     property int opening: 0
@@ -122,9 +141,46 @@ Item {
         if (copyProcess.opening === root.opening) root.error = strings.t("copyFailed")
         return
       }
-      history.remember(copyProcess.query, copyProcess.emoji)
-      root.copied(copyProcess.emoji)
-      if (root.opened && copyProcess.opening === root.opening) root.dismiss()
+      if (copyProcess.action === "copy") {
+        history.remember(copyProcess.query, copyProcess.emoji)
+        root.copied(copyProcess.emoji)
+        if (root.opened && copyProcess.opening === root.opening) root.dismiss()
+        return
+      }
+      // Never send an old selection into a newly opened picker or application.
+      if (!root.opened || copyProcess.opening !== root.opening) return
+      pasteProcess.query = copyProcess.query
+      pasteProcess.emoji = copyProcess.emoji
+      pasteProcess.opening = copyProcess.opening
+      root.dismiss()
+      pasteDelay.start()
+    }
+  }
+
+  Timer {
+    id: pasteDelay
+    interval: 150
+    onTriggered: {
+      if (root.opened || pasteProcess.opening !== root.opening) return
+      pasteProcess.command = ["bash", "-c", 'exec "$@"', "omoji-paste"].concat(root.pasteCommand)
+      pasteProcess.running = true
+    }
+  }
+
+  Process {
+    id: pasteProcess
+    property string query: ""
+    property string emoji: ""
+    property int opening: 0
+    onExited: function(code) {
+      if (code === 0) {
+        history.remember(pasteProcess.query, pasteProcess.emoji)
+        root.pasted(pasteProcess.emoji)
+      } else if (pasteProcess.opening === root.opening && !root.opened) {
+        root.opened = true
+        root.error = strings.t("pasteFailed")
+        Qt.callLater(function() { searchInput.forceActiveFocus() })
+      }
     }
   }
 
@@ -135,6 +191,12 @@ Item {
     objectName: "omoji-window"
     shown: root.opened
     WlrLayershell.namespace: "omarchy-emojis"
+
+    Shortcut {
+      sequences: ["Ctrl+Return", "Ctrl+Enter"]
+      enabled: root.opened
+      onActivated: root.activate(resultList.currentIndex, "copy")
+    }
 
     Rectangle { anchors.fill: parent; color: Commons.Color.menu.scrim }
     MouseArea { anchors.fill: parent; onClicked: root.dismiss() }
@@ -161,13 +223,17 @@ Item {
         spacing: Style.spacing.sm
 
         Item {
+          id: searchHeader
           width: parent.width
           height: Style.space(54)
 
           TextInput {
             id: searchInput
             objectName: "emoji-search"
-            anchors.fill: parent
+            anchors.left: parent.left
+            anchors.right: settingsButton.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
             verticalAlignment: TextInput.AlignVCenter
             font.family: Style.font.menuFamily
             font.pixelSize: Style.font.heading
@@ -196,13 +262,60 @@ Item {
               font: searchInput.font
             }
           }
+          Button {
+            id: settingsButton
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            text: strings.t("settings")
+            tooltipText: strings.t("settingsShortcut")
+            fontSize: Style.font.caption
+            fontFamily: Style.font.menuFamily
+            foreground: Commons.Color.menu.text
+            focusable: true
+            selected: root.settingsOpen
+            onClicked: {
+              root.settingsOpen = !root.settingsOpen
+              if (root.settingsOpen) actionOptions.forceActiveFocus()
+              else searchInput.forceActiveFocus()
+            }
+          }
+        }
+
+        Item {
+          id: settingsRow
+          visible: root.settingsOpen
+          width: parent.width
+          height: visible ? Style.space(48) : 0
+          Text {
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            text: strings.t("defaultAction")
+            textFormat: Text.PlainText
+            font.family: Style.font.menuFamily
+            font.pixelSize: Style.font.body
+            color: Commons.Color.menu.text
+          }
+          ButtonGroup {
+            id: actionOptions
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            options: [{ value: "copy", label: strings.t("copy") }, { value: "paste", label: strings.t("paste") }]
+            value: root.defaultAction
+            enabled: preferences.ready && !preferences.error
+            onChanged: function(value) { preferences.choose(value) }
+            Keys.onEscapePressed: {
+              root.settingsOpen = false
+              searchInput.forceActiveFocus()
+            }
+          }
         }
 
         Rectangle { width: parent.width; height: 1; color: Commons.Color.menu.border; opacity: 0.35 }
 
         Item {
           width: parent.width
-          height: parent.height - Style.space(54) - Style.space(30) - 2 - parent.spacing * 4
+          height: parent.height - searchHeader.height - settingsRow.height - status.height - 1
+            - parent.spacing * (2 + (settingsRow.visible ? 1 : 0) + (status.visible ? 1 : 0))
 
           ListView {
             id: resultList
@@ -239,9 +352,23 @@ Item {
               }
 
               Text {
+                id: actionHint
+                visible: parent.selected
+                anchors.right: parent.right
+                anchors.rightMargin: Style.spacing.md
+                anchors.verticalCenter: parent.verticalCenter
+                text: strings.t("enterAction").arg(strings.t(root.defaultAction))
+                textFormat: Text.PlainText
+                font.family: Style.font.menuFamily
+                font.pixelSize: Style.font.caption
+                color: Commons.Color.menu.text
+                opacity: 0.7
+              }
+
+              Text {
                 anchors.left: glyph.right
                 anchors.leftMargin: Style.spacing.md
-                anchors.right: parent.right
+                anchors.right: actionHint.visible ? actionHint.left : parent.right
                 anchors.rightMargin: Style.spacing.md
                 anchors.verticalCenter: parent.verticalCenter
                 text: modelData.n
@@ -276,29 +403,18 @@ Item {
           }
         }
 
-        Rectangle { width: parent.width; height: 1; color: Commons.Color.menu.border; opacity: 0.35 }
-
         Item {
+          id: status
           width: parent.width
-          height: Style.space(30)
-
+          visible: statusText.text !== ""
+          height: visible ? statusText.implicitHeight : 0
           Text {
-            anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-            text: root.error || (history.error ? strings.t("learningFailed") : "omoji")
+            id: statusText
+            width: parent.width
+            text: root.error || (preferences.error ? strings.t("preferencesFailed") : history.error ? strings.t("learningFailed") : "")
             textFormat: Text.PlainText
+            wrapMode: Text.Wrap
             color: Commons.Color.menu.text
-            opacity: 0.6
-            font.family: Style.font.menuFamily
-            font.pixelSize: Style.font.caption
-          }
-          Text {
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            text: strings.t("copy")
-            textFormat: Text.PlainText
-            color: Commons.Color.menu.text
-            opacity: 0.7
             font.family: Style.font.menuFamily
             font.pixelSize: Style.font.caption
           }

@@ -2,11 +2,17 @@
   "schemaVersion": 1,
   "id": "akshar.omoji",
   "name": "omoji",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "Akshar",
   "description": "A keyboard-first emoji picker that learns what you choose for each search",
-  "kinds": ["overlay"],
+  "kinds": [
+    "overlay"
+  ],
   "keepLoaded": true,
-  "entryPoints": { "overlay": "Emojis.qml" },
-  "omarchy": { "clonedFrom": "omarchy.emojis" }
+  "entryPoints": {
+    "overlay": "Emojis.qml"
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.emojis"
+  }
 }

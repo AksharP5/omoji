@@ -3,15 +3,15 @@
 A native emoji picker for [Omarchy](https://omarchy.org) that remembers what you mean.
 Inspired by [Omacast](https://github.com/typecraft-dev/oma-cast): fast keyboard search, learned choices, and your desktop's theme.
 
-Search `flower`, choose rose, and rose comes first the next time you search `flower`.
+Search `flower`, choose wilted flower, and wilted flower comes first the next time you search `flower`.
 Learning stays specific to that search. The most-used choice wins; the most recent choice breaks ties.
 Opening the picker without a search shows your recent choices first.
 
-![omoji searching for flower after choosing rose](preview.png)
+![omoji searching for flower after choosing wilted flower](preview.png)
 
 ## Install
 
-Verified on Omarchy **4.5.0** and the **4.0.0.r7396.g526fe64-1** development build. You do not need to upgrade from that development build. The picker uses Omarchy's Quickshell shell, Bash, and `wl-copy`, which Omarchy includes.
+Verified on Omarchy **4.5.0** and the **4.0.0.r7396.g526fe64-1** development build. You do not need to upgrade from that development build. The picker uses Omarchy's Quickshell shell, Bash, `wl-copy`, and `wtype`, which Omarchy includes.
 There are no runtime downloads or extra background services. Node and Python are development tools only.
 
 ```sh
@@ -32,11 +32,27 @@ Update with `omarchy plugin update akshar.omoji`.
 | Up / Down | Select a result |
 | Ctrl+N / Ctrl+P | Next / previous result |
 | Page Up / Page Down | Move a page |
-| Enter | Copy the selected emoji and remember the choice |
+| Enter | Paste the selected emoji, or copy if configured |
+| Ctrl+Enter | Always copy the selected emoji |
+| Ctrl+, | Open action settings |
 | Esc | Clear the search, then close |
 
-Clicking a result copies it too. Paste it wherever you want with your application's paste shortcut.
-Only successful copies teach the picker. Moving through results and dismissing it do not count.
+Clicking a result uses the same default action as Enter. The selected result shows the current action beside its name.
+Moving through results and dismissing the picker do not count as choices.
+
+## Copy or paste
+
+Open **Settings** beside the search, or press **Ctrl+,**, and choose **Copy** or **Paste** under **Enter action**. The preference is saved immediately and survives updates and restarts. Paste is the initial default; Ctrl+Enter always copies without changing your preference.
+
+Paste closes the picker, then sends Shift+Insert to the focused application, using the same mechanism as Omarchy's built-in picker. The emoji also stays on the clipboard. Applications must support Shift+Insert; if yours does not, choose Copy and use its normal paste shortcut. A failed paste command brings the picker back with an error and leaves the emoji available to paste manually. Only completed copy or paste commands teach the picker; the picker cannot detect whether an application accepts a paste shortcut.
+
+Preferences live in `${XDG_CONFIG_HOME:-~/.config}/omoji/config.json`:
+
+```json
+{ "version": 1, "defaultAction": "paste" }
+```
+
+Set `defaultAction` to `"copy"` to copy instead. Changes to this file are picked up automatically. Invalid or unreadable preferences fall back to copying and are left untouched; the picker displays a warning.
 
 ## How learning works
 
@@ -45,7 +61,7 @@ Choices for `flower` have no effect on the order for `heart`. Exact name matches
 The picker keeps the 2,000 most recently used search and emoji pairs. This first version has no account, telemetry, or network access.
 
 History is stored in `${XDG_STATE_HOME:-~/.local/state}/omoji/history.json` in a private directory with mode `0700`; the file has mode `0600`.
-Writes are atomic. An unreadable file or an unknown history version disables learning and leaves the file untouched, while copying keeps working.
+Writes are atomic. An unreadable file or an unknown history version disables learning and leaves the file untouched, while copy and paste keep working.
 
 ## Remove
 
@@ -67,7 +83,7 @@ python scripts/native-test.py
 python scripts/preview.py
 ```
 
-The native tests and preview require a running Omarchy Wayland session. They use a temporary shell host and temporary history, so they do not install the plugin or change your shortcut. Native tests replace the clipboard command, suppress window visibility, and exercise real QML and disk writes. They check persistence across restarts, private permissions, failed and missing clipboard commands, reopening during a copy, and corrupt history.
+The native tests and preview require a running Omarchy Wayland session. They use a temporary shell host and temporary history, so they do not install the plugin or change your shortcut. Native tests replace the clipboard and paste commands, suppress window visibility, and exercise real QML and disk writes. They check learned choices and action preferences across restarts, private permissions, Ctrl+Enter, failed and missing commands, cancellation when reopening, and corrupt files.
 
 `OMARCHY_PATH=/path/to/omarchy python scripts/native-test.py` checks against another Omarchy source checkout. Verified with the **v4.5.0** shell components and the installed **4.0.0.r7396.g526fe64-1** development build, using Quickshell **0.3.2.r7**. This does not claim compatibility with earlier stable Omarchy releases.
 

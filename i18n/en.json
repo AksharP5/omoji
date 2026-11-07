@@ -1,8 +1,15 @@
 {
   "search": "Search emoji...",
   "empty": "No emoji found",
-  "copy": "Enter  Copy",
+  "copy": "Copy",
   "copyFailed": "Could not copy. Try again.",
   "catalogFailed": "Could not load emoji",
-  "learningFailed": "Learning unavailable"
+  "learningFailed": "Learning unavailable",
+  "paste": "Paste",
+  "enterAction": "↵  %1",
+  "settings": "Settings",
+  "settingsShortcut": "Settings (Ctrl+,)",
+  "defaultAction": "Enter action",
+  "pasteFailed": "Could not paste. Emoji copied to clipboard.",
+  "preferencesFailed": "Preferences unavailable. Enter copies."
 }

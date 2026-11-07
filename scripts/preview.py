@@ -56,6 +56,7 @@ ShellRoot {
   Emojis {
     id: picker
     historyPath: %s
+    preferencesPath: %s
     onOpenedChanged: if (!opened) Qt.callLater(function() { Qt.quit() })
   }
   Timer { interval: 300; running: true; onTriggered: picker.open("{}") }
@@ -84,7 +85,7 @@ ShellRoot {
   }
 }
 ''' % (json.dumps(str(args.capture.resolve()) if args.capture else ""), json.dumps(args.query),
-       json.dumps(str(state))))
+       json.dumps(str(state)), json.dumps(str(Path(directory) / "config.json"))))
         subprocess.run(["quickshell", "--no-color", "--path", str(host)], check=True)
 
 
