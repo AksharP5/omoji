@@ -11,9 +11,12 @@ Item {
   property string error: ""
 
   function choose(action) {
-    if (!store.ready || store.error || (action !== "copy" && action !== "paste")) return
+    if (!store.ready || store.error || (action !== "copy" && action !== "paste")) return false
+    if (action === store.defaultAction) return true
     preferencesFile.setText(JSON.stringify({ version: 1, defaultAction: action }) + "\n")
+    if (store.error) return false
     store.defaultAction = action
+    return true
   }
 
   Process {

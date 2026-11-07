@@ -23,6 +23,7 @@ def run_case(directory, state, phase, omarchy_path):
         preferences.write_text(json.dumps({"version": 1, "defaultAction": "copy"}))
     host.write_text('''import QtQuick
 import Quickshell
+import Quickshell.Io
 import "plugin"
 ShellRoot {
   id: test
@@ -31,6 +32,30 @@ ShellRoot {
   property bool finished: false
   property string phase: %s
   function fail(message) { console.error("NATIVE FAIL:", message); Qt.exit(1) }
+  function find(item, name) {
+    if (item.objectName === name) return item
+    var children = item.children || []
+    for (var i = 0; i < children.length; i++) { var result = find(children[i], name); if (result) return result }
+    return null
+  }
+  Process {
+    id: denyWrites
+    command: ["chmod", "500", %s]
+    onExited: function(code) {
+      if (code !== 0) { test.fail("could not simulate read-only preferences"); return }
+      var panel = picker.data.find(function(item) { return item.objectName === "omoji-window" })
+      var menu = test.find(panel.contentItem, "omoji-action-settings")
+      menu.choose("copy")
+      if (!picker.preferencesError || !picker.settingsOpen || !menu.enabled || menu.choicesEnabled) {
+        test.fail("failed save disabled menu dismissal or hid the error"); return
+      }
+      picker.handleKey({ key: Qt.Key_Escape, modifiers: Qt.NoModifier })
+      if (picker.settingsOpen || !picker.opened || picker.filterText !== "flower") {
+        test.fail("failed save did not retain the search and Escape route"); return
+      }
+      test.finished = true
+    }
+  }
   Emojis {
     id: picker
     historyPath: %s
@@ -74,14 +99,27 @@ ShellRoot {
       }
       if ((!picker.preferencesReady && !picker.preferencesError) || !picker.catalog.length || (!picker.historyReady && !picker.learningError) || test.started) return
       test.started = true
+      if (test.phase === "preferences-save-failure") {
+        picker.open("{}")
+        picker.filterText = "flower"
+        picker.toggleSettings()
+        denyWrites.running = true
+        return
+      }
       if (test.phase === "choose-default") {
         if (picker.defaultAction !== "paste") { test.fail("fresh default was not paste"); return }
+        picker.open("{}")
+        picker.filterText = "flower"
+        picker.moveSelection(2)
+        var selected = picker.selectedIndex
         picker.handleKey({ key: Qt.Key_Question, modifiers: Qt.ShiftModifier })
         if (!picker.settingsOpen) { test.fail("settings shortcut failed"); return }
-        picker.data.find(function(item) { return item.objectName === "omoji-preferences" }).choose("copy")
+        var panel = picker.data.find(function(item) { return item.objectName === "omoji-window" })
+        test.find(panel.contentItem, "omoji-action-settings").choose("copy")
         if (picker.defaultAction !== "copy") { test.fail("default did not change"); return }
-        picker.handleKey({ key: Qt.Key_Escape, modifiers: Qt.NoModifier })
-        if (picker.settingsOpen) { test.fail("settings did not close"); return }
+        if (picker.settingsOpen || !picker.opened || picker.filterText !== "flower" || picker.selectedIndex !== selected) {
+          test.fail("applying preference did not return to the preserved search"); return
+        }
         test.finished = true
         return
       }
@@ -134,9 +172,13 @@ ShellRoot {
     onTriggered: { picker.dismiss(); picker.open("{}"); picker.filterText = "heart" }
   }
 }
-''' % (json.dumps(phase), json.dumps(str(state)), json.dumps(str(preferences)), json.dumps(str(case_dir / "paste-request"))))
+''' % (json.dumps(phase), json.dumps(str(preferences.parent)), json.dumps(str(state)), json.dumps(str(preferences)), json.dumps(str(case_dir / "paste-request"))))
     env = {**os.environ, "QT_QPA_PLATFORM": "wayland", "OMARCHY_PATH": str(omarchy_path)}
-    result = subprocess.run(["quickshell", "--no-color", "--path", str(host)], env=env, capture_output=True, text=True, timeout=12)
+    try:
+        result = subprocess.run(["quickshell", "--no-color", "--path", str(host)], env=env, capture_output=True, text=True, timeout=12)
+    finally:
+        if phase == "preferences-save-failure":
+            preferences.parent.chmod(0o700)
     output = result.stdout + result.stderr
     if result.returncode or "NATIVE PASS:" not in output or re.search(
         r"ERROR:|ReferenceError|TypeError|Binding loop|Unable to assign|Cannot assign", output
@@ -179,6 +221,9 @@ def main():
         run_case(directory, preference_state, "choose-default", omarchy_path)
         assert json.loads(preference_state.with_name("config.json").read_text())["defaultAction"] == "copy"
         run_case(directory, preference_state, "preference-restart", omarchy_path)
+        failed_preferences_state = Path(directory) / "preferences-save-failure-state/history.json"
+        run_case(directory, failed_preferences_state, "preferences-save-failure", omarchy_path)
+        assert json.loads(failed_preferences_state.with_name("config.json").read_text())["defaultAction"] == "paste"
         invalid_state = Path(directory) / "invalid-preferences-state/history.json"
         invalid_state.parent.mkdir()
         invalid_config = invalid_state.with_name("config.json")

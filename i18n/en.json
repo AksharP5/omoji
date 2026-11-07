@@ -12,11 +12,6 @@
   "defaultAction": "Default action",
   "pasteFailed": "Could not paste. Emoji copied to clipboard.",
   "preferencesFailed": "Preferences unavailable. Enter copies.",
-  "defaultActionHelp": "Enter uses your default. Ctrl+Enter uses the other.",
-  "copyDescription": "Keep it on your clipboard for later.",
-  "pasteDescription": "Insert it into the app you came from.",
-  "savedAutomatically": "Saved automatically",
-  "done": "Done",
-  "backToSearch": "Back to search (Esc)",
-  "settingsHelp": "↑↓ / Tab to move   ·   Enter / Space to choose   ·   Esc to return"
+  "copyDescription": "To the clipboard",
+  "pasteDescription": "Into the current app"
 }

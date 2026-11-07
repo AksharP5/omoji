@@ -13,7 +13,7 @@ Type `flower`, choose wilted flower, and it comes first the next time you search
 - **Copies or pastes.** Choose what Enter does. Ctrl+Enter does the other action.
 - **Fits your desktop.** Native Quickshell UI, your Omarchy theme, and no extra background service.
 
-Inspired by [Omacast](https://github.com/typecraft-dev/oma-cast).
+[Raycast](https://www.raycast.com/)-style emoji search for Omarchy, inspired by [Omacast](https://github.com/typecraft-dev/oma-cast).
 
 ## Install
 
@@ -32,16 +32,16 @@ Tested on Omarchy **4.5.0** and **4.0.0.r7396.g526fe64-1**. Uses the Quickshell,
 
 ## Make Enter work your way
 
-Press **?** or click the **gear** beside search. Press **C** for Copy or **P** for Paste. It saves automatically.
+Press **?** or click the **gear** beside search. Click **Copy** or **Paste**, or press **C** or **P**. Your choice saves immediately and the menu closes, returning you to the same search.
 
-<img src="docs/screenshots/settings.png" alt="Action settings with Paste selected and a preview of Enter and Ctrl+Enter" width="640">
+<img src="docs/screenshots/settings.png" alt="Compact gear menu with Copy and Paste options and subtle keyboard shortcuts" width="640">
 
 | Default | Enter or click | Ctrl+Enter |
 | --- | --- | --- |
 | Paste | Paste into the app you came from | Copy to clipboard |
 | Copy | Copy to clipboard | Paste into the app you came from |
 
-Paste is the initial default. **Esc** or **Done** returns to your search without losing it.
+Paste is the initial default. **Esc**, **?**, or a click outside the menu closes it without changing your preference.
 
 Pasting sends **Shift+Insert** after the picker closes, as Omarchy does. The emoji also stays on the clipboard. If your app does not accept Shift+Insert, use Copy and your app's paste shortcut instead.
 
@@ -59,7 +59,7 @@ Pasting sends **Shift+Insert** after the picker closes, as Omarchy does. The emo
 | ? / Ctrl+, | Open or close settings |
 | Esc | Leave settings, clear the search, then close |
 
-In settings, **C** selects Copy and **P** selects Paste immediately. You can also use **Up/Down** or **Tab**, then **Enter** or **Space** to select. Press **Esc** to return to your search. Emoji actions are suspended while settings is open.
+In settings, **C** selects Copy and **P** selects Paste and returns to the picker. You can also use **Up/Down** or **Tab**, then **Enter** or **Space** to apply the highlighted choice and return. Emoji actions are suspended while the menu is open.
 
 ## Learning and privacy
 

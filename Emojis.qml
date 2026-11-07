@@ -48,6 +48,7 @@ Item {
   }
 
   function close() {
+    root.settingsOpen = false
     root.opened = false
   }
 
@@ -85,14 +86,19 @@ Item {
   function toggleSettings() {
     root.settingsOpen = !root.settingsOpen
     if (root.settingsOpen) Qt.callLater(function() { if (root.settingsOpen) actionSettings.focusChoice() })
-    else searchInput.forceActiveFocus()
+    else root.closeSettings()
+  }
+
+  function closeSettings() {
+    root.settingsOpen = false
+    pointerGate.reset()
+    Qt.callLater(function() { if (root.opened && !root.settingsOpen) searchInput.forceActiveFocus() })
   }
 
   function handleKey(event) {
     if (event.key === Qt.Key_Escape) {
       if (root.settingsOpen) {
-        root.settingsOpen = false
-        searchInput.forceActiveFocus()
+        root.closeSettings()
       } else if (searchInput.text) searchInput.clear()
       else root.dismiss()
     } else if (event.key === Qt.Key_Question || (event.modifiers === Qt.ControlModifier && event.key === Qt.Key_Comma)) {
@@ -224,7 +230,7 @@ Item {
     }
 
     Rectangle { anchors.fill: parent; color: Commons.Color.menu.scrim }
-    MouseArea { anchors.fill: parent; onClicked: root.dismiss() }
+    MouseArea { anchors.fill: parent; onClicked: root.settingsOpen ? root.closeSettings() : root.dismiss() }
 
     BorderSurface {
       id: card
@@ -258,7 +264,6 @@ Item {
 
           TextInput {
             id: searchInput
-            visible: !root.settingsOpen
             enabled: !root.settingsOpen
             objectName: "emoji-search"
             anchors.left: parent.left
@@ -293,25 +298,15 @@ Item {
               font: searchInput.font
             }
           }
-          Text {
-            visible: root.settingsOpen
-            anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-            text: translations.t("settings")
-            textFormat: Text.PlainText
-            font.family: Style.font.menuFamily
-            font.pixelSize: Style.font.heading
-            color: Commons.Color.menu.text
-          }
           Button {
             id: settingsButton
             objectName: "omoji-settings-toggle"
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.settingsOpen ? translations.t("done") : "?"
-            iconText: root.settingsOpen ? "" : "\uf013"
-            tooltipText: root.settingsOpen ? translations.t("backToSearch") : translations.t("settingsShortcut")
-            Accessible.name: root.settingsOpen ? translations.t("done") : translations.t("settings")
+            text: "?"
+            iconText: "\uf013"
+            tooltipText: translations.t("settingsShortcut")
+            Accessible.name: translations.t("settings")
             fontSize: Style.font.caption
             iconSize: Style.font.title
             foreground: Commons.Color.menu.text
@@ -328,22 +323,10 @@ Item {
           height: parent.height - searchHeader.height - status.height - 1
             - parent.spacing * (2 + (status.visible ? 1 : 0))
 
-          ActionSettings {
-            id: actionSettings
-            objectName: "omoji-action-settings"
-            anchors.fill: parent
-            visible: root.settingsOpen
-            strings: translations
-            value: root.defaultAction
-            enabled: root.settingsOpen && preferences.ready && !preferences.error
-            onChanged: function(value) { preferences.choose(value) }
-            onClosed: root.toggleSettings()
-          }
-
           ListView {
             id: resultList
-            visible: !root.settingsOpen
             enabled: !root.settingsOpen
+            opacity: root.settingsOpen ? 0.65 : 1
             objectName: "emoji-results"
             anchors.top: parent.top
             anchors.left: parent.left
@@ -421,7 +404,7 @@ Item {
 
           Text {
             anchors.centerIn: parent
-            visible: !root.settingsOpen && !root.results.length
+            visible: !root.results.length
             text: root.error || translations.t("empty")
             textFormat: Text.PlainText
             color: Commons.Color.menu.text
@@ -447,6 +430,31 @@ Item {
             font.pixelSize: Style.font.caption
           }
         }
+      }
+
+      MouseArea {
+        objectName: "omoji-menu-dismiss-area"
+        z: 1
+        anchors.fill: parent
+        visible: root.settingsOpen
+        onClicked: root.closeSettings()
+      }
+      ActionSettings {
+        id: actionSettings
+        objectName: "omoji-action-settings"
+        z: 2
+        x: card.width - card.contentRightInset - width
+        y: card.contentTopInset + searchHeader.height - Style.spacing.sm
+        width: Math.min(implicitWidth, card.width - card.contentLeftInset - card.contentRightInset)
+        visible: root.settingsOpen
+        enabled: root.settingsOpen
+        choicesEnabled: preferences.ready && !preferences.error
+        strings: translations
+        value: root.defaultAction
+        onChanged: function(value) {
+          if (preferences.choose(value)) root.closeSettings()
+        }
+        onClosed: root.closeSettings()
       }
     }
   }
