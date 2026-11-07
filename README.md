@@ -1,101 +1,107 @@
 # omoji
 
-A native emoji picker for [Omarchy](https://omarchy.org) that remembers what you mean.
-Inspired by [Omacast](https://github.com/typecraft-dev/oma-cast): fast keyboard search, learned choices, and your desktop's theme.
+An emoji picker for [Omarchy](https://omarchy.org) that learns your choices.
 
-Search `flower`, choose wilted flower, and wilted flower comes first the next time you search `flower`.
-Learning stays specific to that search. The most-used choice wins; the most recent choice breaks ties.
-Opening the picker without a search shows your recent choices first.
+Type `flower`, choose wilted flower, and it comes first the next time you search `flower`. No aliases to set up. Just pick what you mean.
 
-![omoji searching for flower after choosing wilted flower](preview.png)
+| Your first search | The next time |
+| --- | --- |
+| ![Flower results before choosing wilted flower](docs/screenshots/before.png) | ![Wilted flower ranked first for the same search](docs/screenshots/learned.png) |
+
+- **Learns each search.** Your choice for `flower` stays separate from your choice for `heart`.
+- **Remembers recent picks.** Open it without typing to find the emojis you used last.
+- **Copies or pastes.** Choose what Enter does. Ctrl+Enter does the other action.
+- **Fits your desktop.** Native Quickshell UI, your Omarchy theme, and no extra background service.
+
+Inspired by [Omacast](https://github.com/typecraft-dev/oma-cast).
 
 ## Install
-
-Verified on Omarchy **4.5.0** and the **4.0.0.r7396.g526fe64-1** development build. You do not need to upgrade from that development build. The picker uses Omarchy's Quickshell shell, Bash, `wl-copy`, and `wtype`, which Omarchy includes.
-There are no runtime downloads or extra background services. Node and Python are development tools only.
 
 ```sh
 omarchy plugin add https://github.com/AksharP5/omoji --enable
 ```
 
-Press **Ctrl+Super+E**. The plugin replaces `omarchy.emojis` through Omarchy's plugin API, so the existing shortcut and Emoji menu action open it. No Hyprland configuration edits are needed.
+Press **Ctrl+Super+E**, type a search, and press **Enter** to use the selected emoji.
+Use **Up/Down** to move through results, or click one.
 
-If you already use another replacement for `omarchy.emojis`, disable that plugin first with `omarchy plugin disable <its-id>`. Omarchy can route the built-in shortcut to only one replacement.
+The existing emoji shortcut and Omarchy menu action open omoji automatically. If you already use another replacement for `omarchy.emojis`, disable that plugin first with `omarchy plugin disable <its-id>`.
 
-Update with `omarchy plugin update akshar.omoji`.
+Tested on Omarchy **4.5.0** and **4.0.0.r7396.g526fe64-1**. Uses the Quickshell, Bash, `wl-copy`, and `wtype` that Omarchy includes. No build step or additional packages.
+
+## Make Enter work your way
+
+Click the **gear** beside search, or press **Ctrl+,**. Choose **Copy** or **Paste**. It saves automatically.
+
+<img src="docs/screenshots/settings.png" alt="Action settings with Paste selected and a preview of Enter and Ctrl+Enter" width="640">
+
+| Default | Enter or click | Ctrl+Enter |
+| --- | --- | --- |
+| Paste | Paste into the app you came from | Copy to clipboard |
+| Copy | Copy to clipboard | Paste into the app you came from |
+
+Paste is the initial default. **Esc** or **Done** returns to your search without losing it.
+
+Pasting sends **Shift+Insert** after the picker closes, as Omarchy does. The emoji also stays on the clipboard. If your app does not accept Shift+Insert, use Copy and your app's paste shortcut instead.
 
 ## Keyboard
 
 | Key | Action |
 | --- | --- |
+| Ctrl+Super+E | Open the picker |
 | Type | Search English names and keywords |
 | Up / Down | Select a result |
 | Ctrl+N / Ctrl+P | Next / previous result |
 | Page Up / Page Down | Move a page |
-| Enter | Paste the selected emoji, or copy if configured |
-| Ctrl+Enter | Always copy the selected emoji |
-| Ctrl+, | Open action settings |
-| Esc | Clear the search, then close |
+| Enter | Use your default action |
+| Ctrl+Enter | Use the opposite action for this pick |
+| Ctrl+, | Open or close settings |
+| Esc | Leave settings, clear the search, then close |
 
-Clicking a result uses the same default action as Enter. The selected result shows the current action beside its name.
-Moving through results and dismissing the picker do not count as choices.
+In settings, use **Up/Down** or **Tab** to focus a choice and **Enter** to select it.
 
-## Copy or paste
+## Learning and privacy
 
-Open **Settings** beside the search, or press **Ctrl+,**, and choose **Copy** or **Paste** under **Enter action**. The preference is saved immediately and survives updates and restarts. Paste is the initial default; Ctrl+Enter always copies without changing your preference.
+The choice you use most for a search comes first. Your most recent choice breaks a tie. Searches ignore case and repeated spaces. Browsing results or closing the picker does not teach it a preference.
 
-Paste closes the picker, then sends Shift+Insert to the focused application, using the same mechanism as Omarchy's built-in picker. The emoji also stays on the clipboard. Applications must support Shift+Insert; if yours does not, choose Copy and use its normal paste shortcut. A failed paste command brings the picker back with an error and leaves the emoji available to paste manually. Only completed copy or paste commands teach the picker; the picker cannot detect whether an application accepts a paste shortcut.
+Everything stays on your machine. No account, telemetry, or runtime network requests. Emoji names and keywords are English; interface text follows Omarchy's language fallback.
 
-Preferences live in `${XDG_CONFIG_HOME:-~/.config}/omoji/config.json`:
+<details>
+<summary>Local files and manual configuration</summary>
+
+Preferences: `${XDG_CONFIG_HOME:-~/.config}/omoji/config.json`
 
 ```json
 { "version": 1, "defaultAction": "paste" }
 ```
 
-Set `defaultAction` to `"copy"` to copy instead. Changes to this file are picked up automatically. Invalid or unreadable preferences fall back to copying and are left untouched; the picker displays a warning.
+Use `"copy"` for a copy default. Changes are picked up automatically. Invalid preferences are left untouched; omoji falls back to copying and shows a warning.
 
-## How learning works
+Learning: `${XDG_STATE_HOME:-~/.local/state}/omoji/history.json`
 
-Searches ignore case and repeated spaces. Each search and emoji pair has a use count and last-used time.
-Choices for `flower` have no effect on the order for `heart`. Exact name matches come before keyword matches when there is no learned preference.
-The picker keeps the 2,000 most recently used search and emoji pairs. This first version has no account, telemetry, or network access.
+The history keeps the 2,000 most recent search/emoji pairs. Files use mode `0600`, directories `0700`, and writes are atomic. Unreadable history is preserved and disables learning while copy and paste keep working. To reset learning, close the picker, rename the history file, and restart the Omarchy shell.
 
-History is stored in `${XDG_STATE_HOME:-~/.local/state}/omoji/history.json` in a private directory with mode `0700`; the file has mode `0600`.
-Writes are atomic. An unreadable file or an unknown history version disables learning and leaves the file untouched, while copy and paste keep working.
+Only completed copy or paste commands teach the picker. It cannot detect whether an application accepts Shift+Insert. If a paste command fails, the picker returns with an error and the emoji remains on the clipboard.
 
-## Remove
+</details>
+
+## Update or remove
+
+```sh
+omarchy plugin update akshar.omoji
+```
+
+If the shell retains an older interface after updating, run `omarchy restart shell`.
 
 ```sh
 omarchy plugin remove akshar.omoji
 ```
 
-Omarchy restores the built-in picker if this plugin disabled it. If you disabled another replacement yourself, re-enable that plugin to return to it.
-Your learning history is kept. To reset it, close the picker, rename its history file, then restart the Omarchy shell.
+Omarchy restores its built-in picker. Your preferences and learning history are kept. If you disabled another replacement yourself, re-enable it to return to that picker.
 
-## Development
+## Contributing
 
-```sh
-git clone https://github.com/AksharP5/omoji
-cd omoji
-node --test tests/search.test.js
-omarchy plugin validate .
-python scripts/native-test.py
-python scripts/preview.py
-```
+See [the development guide](docs/development.md) for tests, isolated previews, and compatibility checks.
 
-The native tests and preview require a running Omarchy Wayland session. They use a temporary shell host and temporary history, so they do not install the plugin or change your shortcut. Native tests replace the clipboard and paste commands, suppress window visibility, and exercise real QML and disk writes. They check learned choices and action preferences across restarts, private permissions, Ctrl+Enter, failed and missing commands, cancellation when reopening, and corrupt files.
+## License
 
-`OMARCHY_PATH=/path/to/omarchy python scripts/native-test.py` checks against another Omarchy source checkout. Verified with the **v4.5.0** shell components and the installed **4.0.0.r7396.g526fe64-1** development build, using Quickshell **0.3.2.r7**. This does not claim compatibility with earlier stable Omarchy releases.
-
-Capture an isolated sample without changing real learning:
-
-```sh
-python scripts/preview.py --query flower --capture /tmp/before.png
-python scripts/preview.py --query flower --learn rose --capture /tmp/after.png
-```
-
-`python scripts/update-data.py` rebuilds the bundled 1,870-emoji catalog from pinned Omarchy v4.5.0 and Unicode CLDR 48 data. This development command downloads public data; the picker itself works offline. UI strings use Omarchy's live language fallback, with English included. Emoji names and keywords are English in this version.
-
-## Credits and license
-
-MIT. The emoji catalog and native shell integration build on [Omarchy](https://github.com/omacom/omarchy), copyright David Heinemeier Hansson, under [its MIT license](LICENSE-OMARCHY). English names and extra keywords come from [Unicode CLDR](https://github.com/unicode-org/cldr-json) under the [Unicode license](LICENSE-UNICODE). Omacast inspired the interaction; this is a separate project.
+[MIT](LICENSE). Built on [Omarchy](https://github.com/omacom/omarchy), copyright David Heinemeier Hansson, under [its MIT license](LICENSE-OMARCHY). English names and keywords come from [Unicode CLDR](https://github.com/unicode-org/cldr-json) under the [Unicode license](LICENSE-UNICODE).
