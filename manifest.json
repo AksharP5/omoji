@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "akshar.omoji",
   "name": "omoji",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "author": "Akshar",
   "description": "A keyboard-first emoji picker that learns what you choose for each search",
   "kinds": [

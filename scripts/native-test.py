@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import tempfile
 
@@ -17,6 +18,12 @@ def run_case(directory, state, phase, omarchy_path):
     case_dir = Path(directory) / phase
     case_dir.mkdir()
     host = preview.prepare_host(case_dir, omarchy_path)
+    if phase == "catalog-failure":
+        broken_plugin = case_dir / "broken-plugin"
+        shutil.copytree(preview.ROOT, broken_plugin, ignore=shutil.ignore_patterns(".git", "__pycache__"))
+        (broken_plugin / "emojis.json").write_text("{invalid")
+        (case_dir / "plugin").unlink()
+        (case_dir / "plugin").symlink_to(broken_plugin, target_is_directory=True)
     preferences = state.with_name("config.json")
     if phase in ["first-pick", "restart", "copy-failure", "start-failure", "reopen", "corrupt", "ctrl-paste"]:
         preferences.parent.mkdir(parents=True, exist_ok=True)
@@ -96,6 +103,21 @@ ShellRoot {
           test.fail("old copy completion dismissed the new search"); return
         }
         console.log("NATIVE PASS:", test.phase); Qt.quit(); return
+      }
+      if (test.phase === "catalog-failure") {
+        if (test.ticks < 8) return
+        picker.open("{}")
+        picker.filterText = "flower"
+        var panel = picker.data.find(function(item) { return item.objectName === "omoji-window" })
+        var message = test.find(panel.contentItem, "emoji-empty")
+        if (!message.visible || message.text !== "Could not load emoji") {
+          test.fail("catalog failure disappeared when opening or searching"); return
+        }
+        picker.dismiss()
+        picker.open("{}")
+        if (message.text !== "Could not load emoji") { test.fail("catalog failure disappeared when reopening"); return }
+        test.finished = true
+        return
       }
       if ((!picker.preferencesReady && !picker.preferencesError) || !picker.catalog.length || (!picker.historyReady && !picker.learningError) || test.started) return
       test.started = true
@@ -230,6 +252,7 @@ def main():
         invalid_config.write_text('{"version":1,"defaultAction":"execute"}')
         run_case(directory, invalid_state, "invalid-preferences", omarchy_path)
         assert json.loads(invalid_config.read_text())["defaultAction"] == "execute"
+        run_case(directory, Path(directory) / "catalog-failure-state/history.json", "catalog-failure", omarchy_path)
         print("Native learning, action defaults, copy/paste, failures, cancellation, persistence and corruption checks passed")
 
 

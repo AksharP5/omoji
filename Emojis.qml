@@ -19,6 +19,7 @@ Item {
   property var catalog: []
   property var results: []
   property string error: ""
+  property string catalogError: ""
   property string historyPath: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omoji/history.json"
   property string preferencesPath: (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/omoji/config.json"
   readonly property string defaultAction: preferences.error ? "copy" : preferences.defaultAction
@@ -132,13 +133,14 @@ Item {
     onLoaded: {
       try {
         root.catalog = EmojiSearch.parseCatalog(text())
+        root.catalogError = ""
         if (root.opened) root.rebuild()
       } catch (failure) {
-        root.error = translations.t("catalogFailed")
+        root.catalogError = translations.t("catalogFailed")
         console.warn("omoji:", failure)
       }
     }
-    onLoadFailed: root.error = translations.t("catalogFailed")
+    onLoadFailed: root.catalogError = translations.t("catalogFailed")
   }
 
   Process {
@@ -403,9 +405,10 @@ Item {
           }
 
           Text {
+            objectName: "emoji-empty"
             anchors.centerIn: parent
             visible: !root.results.length
-            text: root.error || translations.t("empty")
+            text: root.error || root.catalogError || translations.t("empty")
             textFormat: Text.PlainText
             color: Commons.Color.menu.text
             opacity: 0.6
