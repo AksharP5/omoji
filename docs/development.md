@@ -10,6 +10,18 @@ python scripts/native-test.py
 
 Node and Python are development tools only. The picker runs in Omarchy's Quickshell shell.
 
+## macOS app
+
+The macOS app in `macos/` runs the same `EmojiSearch.js`, `emojis.json`, and `i18n/en.json` through JavaScriptCore, so search and learning stay identical on both platforms. `OmojiCore` holds the picker behavior without AppKit; the `omoji` target adds the window, menu bar item, global shortcut, clipboard, and paste.
+
+```sh
+cd macos
+swift test
+./build-app.sh
+```
+
+The tests use temporary preferences and history and replace copy and paste, so they do not touch the clipboard or type into other apps.
+
 The native tests require a running Omarchy Wayland session. They use temporary history and preferences, replace clipboard and paste commands, and suppress the picker window. They cover both default actions, the opposite shortcut, saved preferences, learning across restarts, failed commands, cancellation when reopening, and corrupt files. Catalog failures stay visible after opening, typing, and reopening the picker. Search editing checks cover query limits without losing text or undo history, and keep the cursor visible in long queries.
 
 To check another Omarchy checkout:

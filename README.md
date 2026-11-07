@@ -30,6 +30,24 @@ The existing emoji shortcut and Omarchy menu action open omoji automatically. If
 
 Tested on Omarchy **4.5.0** and **4.0.0.r7396.g526fe64-1**. Uses the Quickshell, Bash, `wl-copy`, `wl-paste`, coreutils, and `wtype` that Omarchy includes. No build step or additional packages.
 
+## macOS
+
+omoji also runs as a small menu bar app on macOS 13 or later. It uses the same emoji catalog, search, and learning as the Omarchy plugin. Build it with the Xcode command line tools:
+
+```sh
+git clone https://github.com/AksharP5/omoji
+cd omoji/macos
+./build-app.sh
+cp -R build/omoji.app /Applications/
+open /Applications/omoji.app
+```
+
+Press **Control-Command-E** to open the picker. The keys are the same as on Omarchy, with **Command-,** for settings and **Command-Return** as well as Control-Return for the other action. The menu bar icon can open the picker, start omoji at login, or quit it.
+
+Paste sends **Command-V** to the app you came from. The first paste asks for Accessibility permission (System Settings › Privacy & Security › Accessibility). Until you allow it, the emoji stays on the clipboard and the picker shows an error. Copy works without any permission.
+
+Preferences and learning use the same files as on Omarchy. Edits to the preferences file apply the next time the picker opens. To reset learning, quit omoji from the menu bar before you rename the history file. Because the app is signed only on your Mac, building it again may ask for Accessibility permission again.
+
 ## Make Enter work your way
 
 Press **?** or click the **gear** beside search. Click **Copy** or **Paste**, or press **C** or **P**. Your choice saves immediately and the menu closes, returning you to the same search.
