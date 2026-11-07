@@ -65,6 +65,8 @@ In settings, **C** selects Copy and **P** selects Paste and returns to the picke
 
 The choice you use most for a search comes first. Your most recent choice breaks a tie. Searches ignore case and repeated spaces. Browsing results or closing the picker does not teach it a preference.
 
+`us flag` favors U.S. flags over countries whose names merely contain `us`. Partial matches remain available, and learned choices still come first.
+
 Everything stays on your machine. No account, telemetry, or runtime network requests. Emoji names and keywords are English; interface text follows Omarchy's language fallback.
 
 <details>

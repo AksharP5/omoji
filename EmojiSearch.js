@@ -64,8 +64,9 @@ function search(catalog, query, choices, limit) {
     var usage = learned[item.e]
     if (needle && !usage && !words.every(function(word) { return item.search.indexOf(word) !== -1 })) return
     var name = normalizeQuery(item.n)
+    var wholeWords = words.every(function(word) { return (" " + item.search + " ").indexOf(" " + word + " ") !== -1 })
     matches.push({ e: item.e, n: item.n, count: usage ? usage.count : 0, lastUsed: usage ? usage.lastUsed : 0,
-      relevance: name === needle ? 0 : name.indexOf(needle) === 0 ? 1 : 2, order: index })
+      relevance: name === needle ? 0 : name.indexOf(needle) === 0 ? 1 : wholeWords ? 2 : 3, order: index })
   })
   matches.sort(function(a, b) {
     if (!needle) return b.lastUsed - a.lastUsed || b.count - a.count || a.order - b.order
