@@ -23,6 +23,8 @@ def main():
     parser.add_argument("--omarchy-path", default=os.environ.get("OMARCHY_PATH", "/usr/share/omarchy"))
     parser.add_argument("--capture", type=Path, help="Save the picker card as a PNG and exit")
     parser.add_argument("--query", default="")
+    parser.add_argument("--settings", action="store_true", help="Show the action settings view")
+    parser.add_argument("--default-action", choices=["copy", "paste"], default="paste")
     parser.add_argument("--learn", help="Seed a sample choice by its English emoji name")
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="omoji-preview-") as directory:
@@ -36,6 +38,8 @@ def main():
             state.write_text(json.dumps({"version": 1, "choices": [
                 {"query": " ".join(args.query.lower().split()), "emoji": choice["e"], "count": 1, "lastUsed": 1}
             ]}))
+        preferences = Path(directory) / "config.json"
+        preferences.write_text(json.dumps({"version": 1, "defaultAction": args.default_action}))
         host = prepare_host(directory, args.omarchy_path)
         host.write_text('''import QtQuick
 import Quickshell
@@ -67,6 +71,7 @@ ShellRoot {
       var panel = picker.data.find(function(item) { return item.objectName === "omoji-window" })
       var input = findItem(panel.contentItem, "emoji-search")
       input.text = query
+      if (%s) picker.toggleSettings()
       if (!capturePath) return
       captureTimer.start()
     }
@@ -85,7 +90,7 @@ ShellRoot {
   }
 }
 ''' % (json.dumps(str(args.capture.resolve()) if args.capture else ""), json.dumps(args.query),
-       json.dumps(str(state)), json.dumps(str(Path(directory) / "config.json"))))
+       json.dumps(str(state)), json.dumps(str(preferences)), "true" if args.settings else "false"))
         subprocess.run(["quickshell", "--no-color", "--path", str(host)], check=True)
 
 

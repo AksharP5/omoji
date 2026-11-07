@@ -18,7 +18,7 @@ def run_case(directory, state, phase, omarchy_path):
     case_dir.mkdir()
     host = preview.prepare_host(case_dir, omarchy_path)
     preferences = state.with_name("config.json")
-    if phase in ["first-pick", "restart", "copy-failure", "start-failure", "reopen", "corrupt"]:
+    if phase in ["first-pick", "restart", "copy-failure", "start-failure", "reopen", "corrupt", "ctrl-paste"]:
         preferences.parent.mkdir(parents=True, exist_ok=True)
         preferences.write_text(json.dumps({"version": 1, "defaultAction": "copy"}))
     host.write_text('''import QtQuick
@@ -35,7 +35,7 @@ ShellRoot {
     id: picker
     historyPath: %s
     preferencesPath: %s
-    pasteCommand: test.phase === "paste-failure" ? ["false"]
+    pasteCommand: ["paste-failure", "paste-settings-failure"].indexOf(test.phase) !== -1 ? ["false"]
       : test.phase === "paste-start-failure" ? ["/nonexistent/omoji-paste"]
       : ["bash", "-c", 'printf paste > "$1"', "test", %s]
     copyCommand: test.phase === "start-failure" ? ["/nonexistent/omoji-copy"]
@@ -47,7 +47,7 @@ ShellRoot {
       panel.shown = false
     }
     onPasted: function(emoji) {
-      if (test.phase !== "paste") { test.fail("unexpected paste"); return }
+      if (["paste", "ctrl-paste"].indexOf(test.phase) === -1) { test.fail("unexpected paste"); return }
       if (picker.opened) { test.fail("paste ran before dismissal"); return }
       picker.rebuild()
       if (picker.results[0].n !== "rose") { test.fail("paste did not teach preference"); return }
@@ -87,26 +87,29 @@ ShellRoot {
       }
       if (test.phase === "preference-restart" && picker.defaultAction !== "copy") { test.fail("default lost on restart"); return }
       if (test.phase === "invalid-preferences" && (!picker.preferencesError || picker.defaultAction !== "copy")) { test.fail("invalid preferences did not safely fall back"); return }
-      if (["reopen", "paste", "ctrl-copy", "paste-failure", "paste-start-failure", "paste-reopen"].indexOf(test.phase) !== -1) picker.open("{}")
+      if (["reopen", "paste", "ctrl-copy", "ctrl-paste", "paste-failure", "paste-settings-failure", "paste-start-failure", "paste-reopen"].indexOf(test.phase) !== -1) picker.open("{}")
       picker.filterText = "flower"
       picker.rebuild()
       if (test.phase === "restart" && picker.results[0].n !== "rose") { test.fail("learning lost after restart"); return }
       if (test.phase === "corrupt" && !picker.learningError) { test.fail("corrupt state accepted"); return }
       var index = picker.results.findIndex(function(item) { return item.n === "rose" })
       if (index < 0) { test.fail("rose missing from flower results"); return }
-      if (test.phase === "ctrl-copy") {
+      if ((test.phase === "ctrl-copy" || test.phase === "ctrl-paste")) {
         picker.moveSelection(index)
         picker.handleKey({ key: Qt.Key_Return, modifiers: Qt.ControlModifier })
-        if (picker.defaultAction !== "paste") test.fail("Ctrl+Enter changed default")
-      } else picker.activate(index)
+        if (picker.defaultAction !== (test.phase === "ctrl-copy" ? "paste" : "copy")) test.fail("Ctrl+Enter changed default")
+      } else {
+        if (test.phase === "paste-settings-failure") picker.toggleSettings()
+        picker.activate(index)
+      }
     }
   }
   Timer {
     interval: 300
-    running: test.started && (["copy-failure", "start-failure", "paste-failure", "paste-start-failure"].indexOf(test.phase) !== -1)
+    running: test.started && (["copy-failure", "start-failure", "paste-failure", "paste-settings-failure", "paste-start-failure"].indexOf(test.phase) !== -1)
     onTriggered: {
       if (!picker.error) test.fail("action failure was hidden")
-      else if (test.phase.indexOf("paste-") === 0 && !picker.opened) test.fail("paste failure did not restore picker")
+      else if (test.phase.indexOf("paste-") === 0 && (!picker.opened || picker.settingsOpen)) test.fail("paste failure did not restore search")
       else { console.log("NATIVE PASS:", test.phase); Qt.quit() }
     }
   }
@@ -156,12 +159,12 @@ def main():
         corrupt.write_text("{invalid")
         run_case(directory, corrupt, "corrupt", omarchy_path)
         assert corrupt.read_text() == "{invalid"
-        for phase in ["paste", "ctrl-copy", "paste-failure", "paste-start-failure", "paste-reopen"]:
+        for phase in ["paste", "ctrl-copy", "ctrl-paste", "paste-failure", "paste-settings-failure", "paste-start-failure", "paste-reopen"]:
             action_state = Path(directory) / phase / "history.json"
             run_case(directory, action_state, phase, omarchy_path)
             choices = json.loads(action_state.read_text())["choices"]
-            assert bool(choices) == (phase in ["paste", "ctrl-copy"]), phase
-            assert (Path(directory) / phase / "paste-request").exists() == (phase == "paste"), phase
+            assert bool(choices) == (phase in ["paste", "ctrl-copy", "ctrl-paste"]), phase
+            assert (Path(directory) / phase / "paste-request").exists() == (phase in ["paste", "ctrl-paste"]), phase
         preference_state = Path(directory) / "preference-state/history.json"
         run_case(directory, preference_state, "choose-default", omarchy_path)
         assert json.loads(preference_state.with_name("config.json").read_text())["defaultAction"] == "copy"

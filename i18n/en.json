@@ -9,7 +9,13 @@
   "enterAction": "↵  %1",
   "settings": "Settings",
   "settingsShortcut": "Settings (Ctrl+,)",
-  "defaultAction": "Enter action",
+  "defaultAction": "When you choose an emoji",
   "pasteFailed": "Could not paste. Emoji copied to clipboard.",
-  "preferencesFailed": "Preferences unavailable. Enter copies."
+  "preferencesFailed": "Preferences unavailable. Enter copies.",
+  "defaultActionHelp": "Enter and a click use this action. Ctrl+Enter does the other.",
+  "copyDescription": "Keep it on your clipboard for later.",
+  "pasteDescription": "Insert it into the app you came from.",
+  "savedAutomatically": "Saved automatically",
+  "done": "Done",
+  "backToSearch": "Back to search (Esc)"
 }
