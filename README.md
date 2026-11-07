@@ -11,7 +11,7 @@ Opening the picker without a search shows your recent choices first.
 
 ## Install
 
-Requires Omarchy **4.5.0**, its Quickshell shell, Bash, and `wl-copy`, which Omarchy includes.
+Verified on Omarchy **4.5.0** and the **4.0.0.r7396.g526fe64-1** development build. You do not need to upgrade from that development build. The picker uses Omarchy's Quickshell shell, Bash, and `wl-copy`, which Omarchy includes.
 There are no runtime downloads or extra background services. Node and Python are development tools only.
 
 ```sh
