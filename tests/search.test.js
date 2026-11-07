@@ -39,6 +39,16 @@ test("multiword searches match keywords regardless of word order", () => {
   assert.equal(search(catalog, "", [], 3).length, 3)
 })
 
+test("whole keywords rank ahead of accidental substrings without overriding learned choices", () => {
+  const results = search(catalog, "us flag", [])
+  const names = results.map(item => item.n)
+  assert.ok(names.indexOf("flag: United States") >= 0)
+  assert.ok(names.indexOf("flag: United States") < names.indexOf("flag: Austria"))
+  const austria = results.find(item => item.n === "flag: Austria")
+  assert.ok(austria)
+  assert.equal(search(catalog, "us flag", remember([], "us flag", austria.e, 100))[0].e, austria.e)
+})
+
 test("learned terms still find an emoji when catalog keywords change", () => {
   const choices = remember([], "flower", rose, 100)
   const changed = catalog.map(item => item.e === rose ? { ...item, search: "rose" } : item)
