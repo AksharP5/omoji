@@ -314,7 +314,10 @@ Item {
             foreground: Commons.Color.menu.text
             focusable: true
             onClicked: root.toggleSettings()
-            Keys.onEscapePressed: if (root.settingsOpen) root.toggleSettings()
+            Keys.onEscapePressed: function(event) {
+              root.handleKey(event)
+              if (root.opened && !root.settingsOpen) searchInput.forceActiveFocus()
+            }
           }
         }
 
