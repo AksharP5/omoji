@@ -7,7 +7,7 @@ Search `flower`, choose rose, and rose comes first the next time you search `flo
 Learning stays specific to that search. The most-used choice wins; the most recent choice breaks ties.
 Opening the picker without a search shows your recent choices first.
 
-![omoji searching for flower after choosing rose](docs/screenshots/learned.png)
+![omoji searching for flower after choosing rose](preview.png)
 
 ## Install
 
