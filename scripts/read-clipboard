@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Keep foreign clipboard transfers bounded and outside the shared shell process.
+# Allow four UTF-8 bytes per search character, plus one to detect overflow.
+exec timeout --kill-after=0.2s 1s bash -o pipefail -c \
+  'wl-paste --no-newline --type text/plain "$@" | head -c 641' omoji-search-clipboard "$@"

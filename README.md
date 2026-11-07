@@ -28,7 +28,7 @@ Use **Up/Down** to move through results, or click one.
 
 The existing emoji shortcut and Omarchy menu action open omoji automatically. If you already use another replacement for `omarchy.emojis`, disable that plugin first with `omarchy plugin disable <its-id>`.
 
-Tested on Omarchy **4.5.0** and **4.0.0.r7396.g526fe64-1**. Uses the Quickshell, Bash, `wl-copy`, and `wtype` that Omarchy includes. No build step or additional packages.
+Tested on Omarchy **4.5.0** and **4.0.0.r7396.g526fe64-1**. Uses the Quickshell, Bash, `wl-copy`, `wl-paste`, coreutils, and `wtype` that Omarchy includes. No build step or additional packages.
 
 ## Make Enter work your way
 
@@ -68,6 +68,8 @@ The choice you use most for a search comes first. Your most recent choice breaks
 `us flag` favors U.S. flags over countries whose names merely contain `us`. Partial matches remain available, and learned choices still come first.
 
 Everything stays on your machine. No account, telemetry, or runtime network requests. Emoji names and keywords are English; interface text follows Omarchy's language fallback.
+
+Search accepts up to 160 characters. Longer queries remain editable; shorten them to select a result. Clipboard text is read only when you paste, in a separate process with a one-second timeout and a 641-byte transfer limit. Oversized or stalled pastes leave your search unchanged and show a warning.
 
 <details>
 <summary>Local files and manual configuration</summary>

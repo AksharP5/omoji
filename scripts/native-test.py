@@ -121,6 +121,32 @@ ShellRoot {
       }
       if ((!picker.preferencesReady && !picker.preferencesError) || !picker.catalog.length || (!picker.historyReady && !picker.learningError) || test.started) return
       test.started = true
+      if (test.phase === "search-editing") {
+        picker.open("{}")
+        var panel = picker.data.find(function(item) { return item.objectName === "omoji-window" })
+        var input = test.find(panel.contentItem, "emoji-search")
+        input.text = "flower" + " ".repeat(155)
+        if (picker.results.length) { test.fail("over-limit queries could select a result"); return }
+        var original = "a".repeat(159) + "z"
+        input.text = original
+        input.cursorPosition = 0
+        input.insert(0, "X")
+        if (input.text !== "X" + original || picker.results.length) {
+          test.fail("over-limit editing removed existing text or allowed a result"); return
+        }
+        input.undo()
+        if (input.text !== original) { test.fail("query limit handling damaged undo"); return }
+        input.cursorPosition = input.length
+        Qt.callLater(function() {
+          var viewport = test.find(panel.contentItem, "emoji-search-viewport")
+          var cursor = input.cursorRectangle
+          if (cursor.x < viewport.contentX - 1 || cursor.x + cursor.width > viewport.contentX + viewport.width + 1) {
+            test.fail("long query cursor was clipped"); return
+          }
+          test.finished = true
+        })
+        return
+      }
       if (test.phase === "preferences-save-failure") {
         picker.open("{}")
         picker.filterText = "flower"
@@ -253,6 +279,7 @@ def main():
         run_case(directory, invalid_state, "invalid-preferences", omarchy_path)
         assert json.loads(invalid_config.read_text())["defaultAction"] == "execute"
         run_case(directory, Path(directory) / "catalog-failure-state/history.json", "catalog-failure", omarchy_path)
+        run_case(directory, Path(directory) / "search-editing-state/history.json", "search-editing", omarchy_path)
         print("Native learning, action defaults, copy/paste, failures, cancellation, persistence and corruption checks passed")
 
 

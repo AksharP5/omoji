@@ -12,7 +12,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - run: node --test tests/search.test.js
+      - run: node --test tests/*.test.js
         working-directory: project
       - uses: actions/checkout@v7
         with:
@@ -22,5 +22,5 @@ jobs:
           sparse-checkout: bin/omarchy-plugin-validate
           sparse-checkout-cone-mode: false
       - run: bash omarchy/bin/omarchy-plugin-validate project
-      - run: bash -n scripts/prepare-state && python -m py_compile scripts/*.py
+      - run: bash -n scripts/prepare-state && bash -n scripts/read-clipboard && python -m py_compile scripts/*.py
         working-directory: project
