@@ -52,6 +52,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   private var colonTap: CFMachPort?
   private var colonSource: CFRunLoopSource?
   private static let typedMark: Int64 = 0x6F6D6A69
+  static let colonEventsMask: CGEventMask = (1 << CGEventType.keyDown.rawValue)
+    | (1 << CGEventType.leftMouseDown.rawValue) | (1 << CGEventType.rightMouseDown.rawValue)
   private static let terminals: Set<String> = ["com.apple.Terminal", "com.googlecode.iterm2", "dev.warp.Warp-Stable",
     "net.kovidgoyal.kitty", "com.mitchellh.ghostty", "org.alacritty", "com.github.wez.wezterm"]
 
@@ -471,9 +473,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   }
 
   private func startColon() {
-    let mask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.leftMouseDown.rawValue) | (1 << CGEventType.rightMouseDown.rawValue)
     guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
-                                      eventsOfInterest: CGEventMask(mask), callback: { proxy, type, event, data in
+                                      eventsOfInterest: Self.colonEventsMask, callback: { proxy, type, event, data in
       Unmanaged<AppDelegate>.fromOpaque(data!).takeUnretainedValue().colonEvent(proxy, type, event)
     }, userInfo: Unmanaged.passUnretained(self).toOpaque()) else {
       stopColon()
@@ -544,7 +545,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
   }
 
-  private static func colonKey(_ event: CGEvent) -> ColonKey {
+  static func colonKey(_ event: CGEvent) -> ColonKey {
     let code = Int(event.getIntegerValueField(.keyboardEventKeycode))
     let modifiers = event.flags.intersection([.maskCommand, .maskControl, .maskShift, .maskAlternate])
     if code == kVK_Delete {

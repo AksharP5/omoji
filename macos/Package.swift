@@ -7,6 +7,7 @@ let package = Package(
   targets: [
     .target(name: "OmojiCore"),
     .executableTarget(name: "omoji", dependencies: ["OmojiCore"]),
-    .testTarget(name: "OmojiCoreTests", dependencies: ["OmojiCore"])
+    .testTarget(name: "OmojiCoreTests", dependencies: ["OmojiCore"]),
+    .testTarget(name: "OmojiAppTests", dependencies: ["omoji", "OmojiCore"])
   ]
 )
