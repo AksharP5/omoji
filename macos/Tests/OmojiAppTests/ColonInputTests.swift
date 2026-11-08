@@ -1,7 +1,7 @@
 import AppKit
 import Carbon.HIToolbox
-import OmojiCore
 import Testing
+@testable import OmojiCore
 @testable import omoji
 
 @Test func modifiedEscapeKeepsTheHostAppShortcut() throws {
@@ -11,8 +11,9 @@ import Testing
     event.flags = flags
     let key = AppDelegate.colonKey(event)
     #expect(key == .other)
-    let trigger = ColonTrigger(search: { _ in [] })
+    let trigger = ColonTrigger(search: { _ in [Emoji(e: "<rose>", n: "rose")] })
     for character in ":ro" { _ = trigger.handle(.text(character)) }
+    #expect(trigger.visible)
     #expect(trigger.handle(key) == .pass)
     #expect(trigger.query == nil)
   }
@@ -23,8 +24,9 @@ import Testing
 @Test func colonTrackingObservesMiddleMouseCancellation() {
   let middleMouseDown = CGEventMask(1) << CGEventType.otherMouseDown.rawValue
   #expect(AppDelegate.colonEventsMask & middleMouseDown != 0)
-  let trigger = ColonTrigger(search: { _ in [] })
+  let trigger = ColonTrigger(search: { _ in [Emoji(e: "<rose>", n: "rose")] })
   for character in ":ro" { _ = trigger.handle(.text(character)) }
+  #expect(trigger.visible)
   #expect(trigger.handle(.other) == .pass)
   #expect(trigger.query == nil)
   #expect(trigger.handle(.enter) == .pass)
