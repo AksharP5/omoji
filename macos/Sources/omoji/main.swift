@@ -51,7 +51,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   private var colonHeight: CGFloat = 100
   private var colonTap: CFMachPort?
   private var colonSource: CFRunLoopSource?
-  private var colonApp: pid_t = 0
   private static let typedMark: Int64 = 0x6F6D6A69
   private static let terminals: Set<String> = ["com.apple.Terminal", "com.googlecode.iterm2", "dev.warp.Warp-Stable",
     "net.kovidgoyal.kitty", "com.mitchellh.ghostty", "org.alacritty", "com.github.wez.wezterm"]
@@ -460,23 +459,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
       self.colonHeight = height
       if self.colonModel.trigger.visible { self.colonPanel.setFrame(Self.place(NSSize(width: 320, height: height), near: self.colonCaret), display: true) }
     }
-    // A swipe or Mission Control can switch apps without a key or click, so fix the text in the app the user left.
-    NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
-                                                      object: nil, queue: .main) { [weak self] _ in self?.endColon() }
-    // A Space switch inside one app moves focus to another window, where the held count means nothing.
-    NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification,
-                                                      object: nil, queue: .main) { [weak self] _ in
-      guard let self, NSWorkspace.shared.frontmostApplication?.processIdentifier == self.colonApp else { return }
-      self.colonModel.trigger.reset()
-      self.refreshColon()
+    // App and Space changes invalidate the tracked caret. Cancellation never edits either document.
+    for name in [NSWorkspace.didActivateApplicationNotification, NSWorkspace.activeSpaceDidChangeNotification] {
+      NSWorkspace.shared.notificationCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in self?.endColon() }
     }
   }
 
-  /// Puts the real ":name" back in the app where the query started and stops following it.
   private func endColon() {
-    if case let .replace(deleting, text, _) = colonModel.trigger.handle(.escape) {
-      Self.type(text, deleting: deleting) { [app = colonApp] in $0.postToPid(app) }
-    }
     colonModel.trigger.reset()
     refreshColon()
   }
@@ -510,14 +499,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     colonTap = nil
     colonSource = nil
-    colonModel.trigger.reset()
-    refreshColon()
+    endColon()
   }
 
   private func colonEvent(_ proxy: CGEventTapProxy, _ type: CGEventType, _ event: CGEvent) -> Unmanaged<CGEvent>? {
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-      colonModel.trigger.reset()
-      refreshColon()
+      endColon()
       if let colonTap { CGEvent.tapEnable(tap: colonTap, enable: true) }
       return Unmanaged.passUnretained(event)
     }
@@ -530,7 +517,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     if tracking, type == .keyDown, event.getIntegerValueField(.keyboardEventAutorepeat) != 0,
        case .text = Self.colonKey(event) { return nil }
     let action = trigger.handle(type == .keyDown ? Self.colonKey(event) : .other)
-    if !tracking && trigger.query != nil { colonApp = NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0 }
     if tracking || trigger.query != nil { DispatchQueue.main.async { self.refreshColon() } }
     switch action {
     case .pass: return Unmanaged.passUnretained(event)
@@ -539,10 +525,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
       Self.type(emoji, deleting: deleting) { $0.tapPostEvent(proxy) }
       DispatchQueue.main.async { self.model.picker.remember(query, emoji) }
       return nil
-    case let .replace(deleting, text, replay):
-      // Hold this key back and send it again after the text, so it lands in order.
-      Self.type(text, deleting: deleting) { $0.tapPostEvent(proxy) }
-      if replay, let copy = event.copy() { copy.tapPostEvent(proxy) }
+    case .delete(let characters):
+      Self.type("", deleting: characters) { $0.tapPostEvent(proxy) }
       return nil
     }
   }

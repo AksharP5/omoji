@@ -364,12 +364,10 @@ private func type(_ trigger: ColonTrigger, _ text: String) -> [ColonAction] {
   text.map { trigger.handle(.text($0)) }
 }
 
-private let mark = ColonAction.replace(deleting: 0, text: ColonTrigger.mark, replay: false)
-
-@Test func colonStartsOnlyAfterABoundaryAndShowsALookAlikeColon() throws {
+@Test func colonStartsOnlyAfterABoundaryWithoutChangingTyping() throws {
   for text in [":ro", " :ro", "\n:ro", "(:ro", "[:ro", "{:ro", "\":ro", "':ro"] {
     let trigger = colon()
-    #expect(type(trigger, text).suffix(3) == [mark, .pass, .pass], "\(text)")
+    #expect(type(trigger, text).suffix(3) == [.pass, .pass, .pass], "\(text)")
     #expect(trigger.visible, "\(text)")
   }
   for text in ["12:30", "http://", "a:ro", "::ro"] {
@@ -419,7 +417,7 @@ private let mark = ColonAction.replace(deleting: 0, text: ColonTrigger.mark, rep
   #expect(trigger.results.count == 2)
   _ = type(trigger, "x")
   #expect(!trigger.visible)
-  #expect(trigger.handle(.enter) == .replace(deleting: 4, text: ":ROx", replay: true))
+  #expect(trigger.handle(.enter) == .pass)
   #expect(trigger.query == nil)
 }
 
@@ -442,18 +440,18 @@ private let mark = ColonAction.replace(deleting: 0, text: ColonTrigger.mark, rep
   #expect(trigger.handle(.text(":")) == .insert(emoji: "<red heart>", deleting: 3, query: "re"))
 }
 
-@Test func colonPutsTheRealColonBackOnOtherInput() throws {
+@Test func colonLeavesLiteralTextAloneOnOtherInput() throws {
   for key in [ColonKey.text("."), .text("é"), .text(" "), .other, .up, .enter] {
     let trigger = colon()
     _ = type(trigger, ":r")
-    #expect(trigger.handle(key) == .replace(deleting: 2, text: ":r", replay: true), "\(key)")
+    #expect(trigger.handle(key) == .pass, "\(key)")
     #expect(trigger.query == nil)
   }
   let trigger = colon()
   _ = type(trigger, ":D")
-  #expect(trigger.handle(.text(")")) == .replace(deleting: 2, text: ":D", replay: true))
+  #expect(trigger.handle(.text(")")) == .pass)
   _ = type(trigger, " :ro")
-  #expect(trigger.handle(.escape) == .replace(deleting: 3, text: ":ro", replay: false))
+  #expect(trigger.handle(.escape) == .consume)
   #expect(!trigger.visible)
   #expect(trigger.handle(.text("d")) == .pass)
   #expect(!trigger.visible)
@@ -475,13 +473,13 @@ private let mark = ColonAction.replace(deleting: 0, text: ColonTrigger.mark, rep
   #expect(trigger.handle(.backspace) == .pass)
   #expect(trigger.query == nil)
   _ = type(trigger, ":ros")
-  #expect(trigger.handle(.deleteWord) == .replace(deleting: 4, text: "", replay: false))
+  #expect(trigger.handle(.deleteWord) == .delete(characters: 4))
   #expect(trigger.query == nil)
   _ = type(trigger, ":ros")
   #expect(trigger.visible)
   let long = String(repeating: "a", count: ColonTrigger.queryLimit)
   _ = type(trigger, " :" + long)
   #expect(trigger.query == long)
-  #expect(trigger.handle(.text("a")) == .replace(deleting: long.count + 1, text: ":" + long, replay: true))
+  #expect(trigger.handle(.text("a")) == .pass)
   #expect(trigger.query == nil)
 }

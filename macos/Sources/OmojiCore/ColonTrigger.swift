@@ -8,20 +8,16 @@ public enum ColonAction: Equatable {
   case pass, consume
   /// Delete `deleting` characters before the caret and type `emoji`; learn it for `query`.
   case insert(emoji: String, deleting: Int, query: String)
-  /// Delete `deleting` characters before the caret, type `text`, then let the current key through when `replay` is true.
-  case replace(deleting: Int, text: String, replay: Bool)
+  case delete(characters: Int)
 }
 
-/// Follows ":name" typing in other apps. The app gets a look-alike colon while the name is typed, so its own ":" emoji popup never opens.
+/// Follows literal ":name" typing without changing the app's text until an emoji is selected or the word is deleted.
 public final class ColonTrigger {
   public static let queryLimit = 32
-  public static let mark = "\u{2236}"
 
   public private(set) var query: String?
   public private(set) var results: [Emoji] = []
   public private(set) var selectedIndex = 0
-  /// What the user typed, with the real colon.
-  private var typed = ""
   /// Whether the text before the caret ends a word; nil after a delete, click or arrow key, when only the app knows.
   private var atBoundary: Bool?
   private let search: (String) -> [Emoji]
@@ -44,8 +40,7 @@ public final class ColonTrigger {
     guard let query else {
       switch key {
       case .text(":") where atBoundary ?? textBeforeCaret().map { $0.last.map(Self.isBoundary) ?? true } ?? true:
-        update("", typed: ":")
-        return .replace(deleting: 0, text: Self.mark, replay: false)
+        update("")
       case .text(let character): atBoundary = Self.isBoundary(character)
       default: atBoundary = nil
       }
@@ -56,50 +51,42 @@ public final class ColonTrigger {
       case .up, .down:
         selectedIndex = (selectedIndex + (key == .up ? -1 : 1) + results.count) % results.count
         return .consume
-      case .enter, .tab, .text(":"): return insert(results[selectedIndex])
+      case .enter, .tab, .text(":"):
+        let action = ColonAction.insert(emoji: results[selectedIndex].e, deleting: query.count + 1, query: searchText)
+        finish(boundary: true)
+        return action
       default: break
       }
     }
     switch key {
     case .backspace:
       // The query only started after a word end, so that is still what is before the caret.
-      if query.isEmpty { finish(boundary: true) } else { update(String(query.dropLast()), typed: String(typed.dropLast())) }
+      if query.isEmpty { finish(boundary: true) } else { update(String(query.dropLast())) }
       return .pass
     case .text(let character) where Self.isQuery(character) && query.count < Self.queryLimit:
-      update(query + character.lowercased(), typed: typed + String(character))
+      update(query + character.lowercased())
       return .pass
     case .deleteWord:
-      // Apps differ on where a word starts next to the look-alike colon, so remove the whole ":name" the same way everywhere.
-      let action = ColonAction.replace(deleting: typed.count, text: "", replay: false)
+      let action = ColonAction.delete(characters: query.count + 1)
       finish(boundary: true)
       return action
     case .escape:
-      let action = ColonAction.replace(deleting: typed.count, text: typed, replay: false)
       finish(boundary: false)
-      return action
+      return .consume
     default:
-      let action = ColonAction.replace(deleting: typed.count, text: typed, replay: true)
       if case .text(let character) = key { finish(boundary: Self.isBoundary(character)) } else { finish(boundary: nil) }
-      return action
+      return .pass
     }
   }
 
-  private func insert(_ emoji: Emoji) -> ColonAction {
-    let action = ColonAction.insert(emoji: emoji.e, deleting: typed.count, query: searchText)
-    finish(boundary: true)
-    return action
-  }
-
-  private func update(_ query: String, typed: String) {
+  private func update(_ query: String) {
     self.query = query
-    self.typed = typed
     results = query.count >= 2 ? search(searchText) : []
     selectedIndex = 0
   }
 
   private func finish(boundary: Bool?) {
     query = nil
-    typed = ""
     results = []
     selectedIndex = 0
     atBoundary = boundary

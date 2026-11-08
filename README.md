@@ -64,6 +64,8 @@ Press **Control-Command-E** to open the picker. The keys are the same as on Omar
 - **Type : to Search Emoji** works in any app: type `:` and at least two letters, such as `:rose`. Up and Down select, Return or Tab inserts the emoji, Escape closes the list, and a closing `:` inserts the highlighted result. Terminal apps are skipped. omoji keeps only the current `:` word in memory, never other typing.
 - **Open at Login** starts omoji when you log in.
 
+The `:` trigger keeps your literal text until you choose an emoji. Switching apps or Spaces cancels the list without editing either document. Apps with their own `:` completion may show both menus; turn this option off to use the app's menu alone.
+
 Paste and Type : need Accessibility permission (System Settings › Privacy & Security › Accessibility). Until you allow it, the picker shows a short guide with an **Open Settings** button before the emoji list. If you choose **Not Now**, a pasted emoji stays on the clipboard and the picker tells you what to do. Copy works without any permission.
 
 Preferences and learning use the same files as on Omarchy. Edits to the preferences file apply the next time the picker opens. To reset learning, quit omoji from the menu bar before you rename the history file. A new version of an app that is not notarized can ask for Accessibility permission again.
