@@ -24,6 +24,8 @@ swift test
 ./build-app.sh
 ```
 
+`./build-app.sh --dmg` builds a universal app and `build/omoji.dmg`. The app icon is drawn by `make-icon.swift` at build time. Pushing a `v<version>` tag that matches `manifest.json` runs `.github/workflows/release.yml`, which attaches `omoji.dmg` to the GitHub release.
+
 The tests use temporary preferences and history and replace copy and paste, so they do not touch the clipboard or type into other apps. Delayed-paste checks cover reopening and dismissing the picker and making another selection before a pending paste completes.
 
 ## Omarchy native checks
