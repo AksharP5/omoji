@@ -17,6 +17,8 @@ private final class Fixture {
   var pastes = 0
   var copyWorks = true
   var pasteWorks = true
+  var delaysPaste = false
+  var pendingPastes: [() -> Void] = []
   var visible = false
   private(set) var picker: Picker!
 
@@ -39,9 +41,13 @@ private final class Fixture {
         self.copied.append(emoji)
         return true
       },
-      paste: { [unowned self] done in
-        self.pastes += 1
-        done(self.pasteWorks)
+      paste: { [unowned self] isCurrent, done in
+        let finish = { [unowned self] in
+          guard isCurrent() else { done(false); return }
+          self.pastes += 1
+          done(self.pasteWorks)
+        }
+        if self.delaysPaste { self.pendingPastes.append(finish) } else { finish() }
       })
     picker.onVisibilityChange = { [unowned self] shown in self.visible = shown }
   }
@@ -240,6 +246,34 @@ private final class Fixture {
   #expect(picker.opened)
   #expect(fixture.visible)
   #expect(picker.statusText == "Could not paste. Emoji copied to clipboard.")
+  #expect(try fixture.reopen().open("flower").results.first?.n != "rose")
+}
+
+@Test func reopeningAndDismissingCancelsPendingPaste() throws {
+  let fixture = try Fixture()
+  fixture.delaysPaste = true
+  let picker = fixture.open("flower")
+  picker.activate(fixture.index(of: "rose"))
+  #expect(fixture.pendingPastes.count == 1)
+  fixture.open("heart").dismiss()
+  fixture.pendingPastes.removeFirst()()
+  #expect(fixture.pastes == 0)
+  #expect(!picker.opened)
+  #expect(try fixture.reopen().open("flower").results.first?.n != "rose")
+}
+
+@Test func oldPasteCannotDuplicateTheNextSelection() throws {
+  let fixture = try Fixture()
+  fixture.delaysPaste = true
+  let picker = fixture.open("flower")
+  picker.activate(fixture.index(of: "rose"))
+  fixture.open("tulip").activate(fixture.index(of: "tulip"))
+  #expect(fixture.pendingPastes.count == 2)
+  fixture.pendingPastes.removeFirst()()
+  #expect(fixture.pastes == 0)
+  fixture.pendingPastes.removeFirst()()
+  #expect(fixture.pastes == 1)
+  #expect(!picker.opened)
   #expect(try fixture.reopen().open("flower").results.first?.n != "rose")
 }
 

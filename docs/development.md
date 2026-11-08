@@ -20,7 +20,7 @@ swift test
 ./build-app.sh
 ```
 
-The tests use temporary preferences and history and replace copy and paste, so they do not touch the clipboard or type into other apps.
+The tests use temporary preferences and history and replace copy and paste, so they do not touch the clipboard or type into other apps. Delayed-paste checks cover reopening and dismissing the picker and making another selection before a pending paste completes.
 
 The native tests require a running Omarchy Wayland session. They use temporary history and preferences, replace clipboard and paste commands, and suppress the picker window. They cover both default actions, the opposite shortcut, saved preferences, learning across restarts, failed commands, cancellation when reopening, and corrupt files. Catalog failures stay visible after opening, typing, and reopening the picker. Search editing checks cover query limits without losing text or undo history, and keep the cursor visible in long queries.
 

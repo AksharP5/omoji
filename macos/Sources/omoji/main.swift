@@ -84,10 +84,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSPasteboard.general.clearContents()
         return NSPasteboard.general.setString(emoji, forType: .string)
       },
-      paste: { [weak self] done in
+      paste: { isCurrent, done in
         // Let the previous app take focus back before Command-V, as Omarchy waits before Shift+Insert.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-          guard self?.model.picker.opened == false else {
+          guard isCurrent() else {
             done(false)
             return
           }

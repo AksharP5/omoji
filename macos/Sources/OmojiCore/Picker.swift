@@ -18,7 +18,7 @@ public struct Modifiers: OptionSet {
 /// The picker's behavior, kept apart from AppKit so it can be tested without a window.
 public final class Picker {
   public typealias Copy = (String) -> Bool
-  public typealias Paste = (@escaping (Bool) -> Void) -> Void
+  public typealias Paste = (_ isCurrent: @escaping () -> Bool, _ done: @escaping (Bool) -> Void) -> Void
 
   let engine: EmojiEngine
   let history: HistoryStore
@@ -139,7 +139,10 @@ public final class Picker {
     }
     let opening = self.opening
     dismiss()
-    paste { [weak self] pasted in
+    paste({ [weak self] in
+      guard let self else { return false }
+      return self.opening == opening && !self.opened
+    }) { [weak self] pasted in
       guard let self else { return }
       if pasted {
         self.history.remember(query, emoji)
