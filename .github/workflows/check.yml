@@ -38,7 +38,7 @@ jobs:
       - run: ./build-app.sh --dmg
         working-directory: macos
       - run: |
-          lipo -verify_arch arm64 x86_64 build/omoji.app/Contents/MacOS/omoji
+          lipo build/omoji.app/Contents/MacOS/omoji -verify_arch arm64 x86_64
           codesign --verify --strict build/omoji.app
           hdiutil verify build/omoji.dmg
         working-directory: macos
