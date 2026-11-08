@@ -28,11 +28,26 @@ Use **Up/Down** to move through results, or click one.
 
 The existing emoji shortcut and Omarchy menu action open omoji automatically. If you already use another replacement for `omarchy.emojis`, disable that plugin first with `omarchy plugin disable <its-id>`.
 
+To use another key, add it to `~/.config/hypr/bindings.lua`. This moves the picker to Super+Period:
+
+```lua
+hl.unbind("SUPER + CTRL + E")
+o.bind("SUPER + PERIOD", "Emojis", { panel = "omarchy.emojis" })
+```
+
+To open the smaller card from its own key, whatever your card setting is:
+
+```lua
+o.bind("SUPER + ALT + E", "Compact emojis", [[omarchy-shell shell toggle omarchy.emojis '{"card":"compact"}']])
+```
+
 Tested on Omarchy **4.5.0** and **4.0.0.r7396.g526fe64-1**. Uses the Quickshell, Bash, `wl-copy`, `wl-paste`, coreutils, and `wtype` that Omarchy includes. No build step or additional packages.
 
 ## macOS
 
-omoji also runs as a small menu bar app on macOS 13 or later. It uses the same emoji catalog, search, and learning as the Omarchy plugin. Build it with the Xcode command line tools:
+omoji also runs as a small menu bar app on macOS 13 or later. It uses the same emoji catalog, search, and learning as the Omarchy plugin.
+
+Tagged releases will provide [omoji.dmg](https://github.com/AksharP5/omoji/releases/latest/download/omoji.dmg). Open the DMG and drag omoji to Applications. The app is not notarized, so macOS blocks the first launch. Open omoji once, then go to System Settings › Privacy & Security and click **Open Anyway**. Until the first release is published, build it yourself with the Xcode command line tools:
 
 ```sh
 git clone https://github.com/AksharP5/omoji
@@ -42,11 +57,18 @@ cp -R build/omoji.app /Applications/
 open /Applications/omoji.app
 ```
 
-Press **Control-Command-E** to open the picker. The keys are the same as on Omarchy, with **Command-,** for settings and **Command-Return** as well as Control-Return for the other action. The menu bar icon can open the picker, start omoji at login, or quit it.
+Press **Control-Command-E** to open the picker. The keys are the same as on Omarchy, with **Command-,** for settings and **Command-Return** as well as Control-Return for the other action. The gear in the picker and the menu bar icon both have these options:
 
-Paste sends **Command-V** to the app you came from. The first paste asks for Accessibility permission (System Settings › Privacy & Security › Accessibility). Until you allow it, the emoji stays on the clipboard and the picker shows an error. Copy works without any permission.
+- **Change Shortcut…** records a new key combination for the picker.
+- **Compact Card** uses a smaller card that opens at the text cursor when the app reports one.
+- **Type : to Search Emoji** works in any app: type `:` and at least two letters, such as `:rose`. Up and Down select, Return or Tab inserts the emoji, Escape closes the list, and a closing `:` inserts the highlighted result. Terminal apps are skipped. omoji keeps only the current `:` word in memory, never other typing.
+- **Open at Login** starts omoji when you log in.
 
-Preferences and learning use the same files as on Omarchy. Edits to the preferences file apply the next time the picker opens. To reset learning, quit omoji from the menu bar before you rename the history file. Because the app is signed only on your Mac, building it again may ask for Accessibility permission again.
+The `:` trigger keeps your literal text until you choose an emoji. Switching apps or Spaces cancels the list without editing either document. Apps with their own `:` completion may show both menus; turn this option off to use the app's menu alone.
+
+Paste and Type : need Accessibility permission (System Settings › Privacy & Security › Accessibility). Until you allow it, the picker shows a short guide with an **Open Settings** button before the emoji list. If you choose **Not Now**, a pasted emoji stays on the clipboard and the picker tells you what to do. Copy works without any permission.
+
+Preferences and learning use the same files as on Omarchy. Edits to the preferences file apply the next time the picker opens. To reset learning, quit omoji from the menu bar before you rename the history file. A new version of an app that is not notarized can ask for Accessibility permission again.
 
 ## Make Enter work your way
 
@@ -98,7 +120,7 @@ Preferences: `${XDG_CONFIG_HOME:-~/.config}/omoji/config.json`
 { "version": 1, "defaultAction": "paste" }
 ```
 
-Use `"copy"` for a copy default. Changes are picked up automatically. Invalid preferences are left untouched; omoji falls back to copying and shows a warning.
+Use `"copy"` for a copy default. Add `"card": "compact"` for the smaller card. Changes are picked up automatically. Invalid preferences are left untouched; omoji falls back to copying and shows a warning.
 
 Learning: `${XDG_STATE_HOME:-~/.local/state}/omoji/history.json`
 

@@ -16,7 +16,7 @@ private final class Fixture {
   var copied: [String] = []
   var pastes = 0
   var copyWorks = true
-  var pasteWorks = true
+  var pasteResult = PasteResult.pasted
   var delaysPaste = false
   var pendingPastes: [() -> Void] = []
   var visible = false
@@ -43,9 +43,9 @@ private final class Fixture {
       },
       paste: { [unowned self] isCurrent, done in
         let finish = { [unowned self] in
-          guard isCurrent() else { done(false); return }
+          guard isCurrent() else { done(.failed); return }
           self.pastes += 1
-          done(self.pasteWorks)
+          done(self.pasteResult)
         }
         if self.delaysPaste { self.pendingPastes.append(finish) } else { finish() }
       })
@@ -239,7 +239,7 @@ private final class Fixture {
 
 @Test func failedPasteReturnsWithTheEmojiCopied() throws {
   let fixture = try Fixture()
-  fixture.pasteWorks = false
+  fixture.pasteResult = .failed
   let picker = fixture.open("flower")
   picker.activate(fixture.index(of: "rose"))
   #expect(fixture.copied == ["🌹"])
@@ -247,6 +247,9 @@ private final class Fixture {
   #expect(fixture.visible)
   #expect(picker.statusText == "Could not paste. Emoji copied to clipboard.")
   #expect(try fixture.reopen().open("flower").results.first?.n != "rose")
+  fixture.pasteResult = .needsAccess
+  fixture.open("flower").activate(fixture.index(of: "rose"))
+  #expect(picker.statusText?.hasPrefix("Allow omoji in System Settings") == true)
 }
 
 @Test func reopeningAndDismissingCancelsPendingPaste() throws {
@@ -320,4 +323,163 @@ private final class Fixture {
   #expect(picker.results.isEmpty)
   #expect(picker.emptyText == "No emoji found")
   #expect(picker.handle(.enter, []))
+}
+
+@Test func cardIsFullUnlessCompactAndNeverInvalidatesPreferences() throws {
+  for (card, expected) in [("", Card.full), (",\"card\":\"compact\"", .compact), (",\"card\":\"huge\"", .full), (",\"card\":7", .full)] {
+    let picker = try Fixture(config: "{\"version\":1,\"defaultAction\":\"copy\"\(card)}").open()
+    #expect(picker.card == expected)
+    #expect(picker.statusText == nil)
+    #expect(picker.defaultAction == .copy)
+  }
+}
+
+@Test func savingOneKeyKeepsTheOthers() throws {
+  let fixture = try Fixture(config: "{\"version\":1,\"defaultAction\":\"paste\",\"card\":\"compact\",\"future\":[1]}")
+  let picker = fixture.open()
+  #expect(picker.handle(.character("?"), [.shift]))
+  #expect(picker.handle(.character("c"), []))
+  let saved = { try JSONSerialization.jsonObject(with: Data(contentsOf: fixture.configURL)) as! NSDictionary }
+  #expect(try saved() == ["version": 1, "defaultAction": "copy", "card": "compact", "future": [1]])
+  #expect(try String(contentsOf: fixture.configURL, encoding: .utf8).hasSuffix("}\n"))
+  #expect(picker.toggleCard())
+  #expect(picker.card == .full)
+  #expect(try saved() == ["version": 1, "defaultAction": "copy", "card": "full", "future": [1]])
+  #expect(try fixture.reopen().open().card == .full)
+}
+
+@Test func cardCannotOverwriteInvalidPreferences() throws {
+  let config = "{\"version\":2,\"defaultAction\":\"paste\"}"
+  let fixture = try Fixture(config: config)
+  #expect(!fixture.open().toggleCard())
+  #expect(try String(contentsOf: fixture.configURL, encoding: .utf8) == config)
+}
+
+private func colon(_ names: [String] = ["rose", "rosette"], before: String? = nil) -> ColonTrigger {
+  ColonTrigger(search: { query in names.filter { $0.contains(query) }.map { Emoji(e: "<\($0)>", n: $0) } },
+               textBeforeCaret: { before })
+}
+
+private func type(_ trigger: ColonTrigger, _ text: String) -> [ColonAction] {
+  text.map { trigger.handle(.text($0)) }
+}
+
+@Test func colonStartsOnlyAfterABoundaryWithoutChangingTyping() throws {
+  for text in [":ro", " :ro", "\n:ro", "(:ro", "[:ro", "{:ro", "\":ro", "':ro"] {
+    let trigger = colon()
+    #expect(type(trigger, text).suffix(3) == [.pass, .pass, .pass], "\(text)")
+    #expect(trigger.visible, "\(text)")
+  }
+  for text in ["12:30", "http://", "a:ro", "::ro"] {
+    let trigger = colon()
+    _ = type(trigger, text)
+    #expect(!trigger.visible, "\(text)")
+  }
+}
+
+@Test func colonAsksTheAppWhatIsBeforeTheCaretAfterADeleteOrMove() throws {
+  for (before, starts) in [("a", false), ("1", false), (" ", true), ("🌹", true), ("❤️", true), ("☀️", true), ("", true), (nil, true)] as [(String?, Bool)] {
+    for key in [ColonKey.backspace, .other, .escape] {
+      let trigger = colon(before: before)
+      _ = type(trigger, "ab:ro")
+      _ = trigger.handle(.escape)
+      _ = trigger.handle(key)
+      _ = type(trigger, ":ro")
+      #expect(trigger.visible == starts, "\(String(describing: before)) \(key)")
+    }
+  }
+  let picked = colon(before: "a")
+  _ = type(picked, " :ro")
+  #expect(picked.handle(.enter) == .insert(emoji: "<rose>", deleting: 3, query: "ro"))
+  for delete in [[ColonKey.backspace, .backspace, .backspace], [.deleteWord]] {
+    _ = type(picked, ":ro")
+    for key in delete { _ = picked.handle(key) }
+    _ = type(picked, ":ro")
+    #expect(picked.visible, "\(delete)")
+    _ = picked.handle(.enter)
+  }
+  let trigger = colon(before: "a")
+  _ = type(trigger, ":ro")
+  _ = trigger.handle(.backspace)
+  _ = trigger.handle(.backspace)
+  _ = trigger.handle(.backspace)
+  _ = trigger.handle(.backspace)
+  _ = type(trigger, " :ro")
+  #expect(trigger.visible)
+}
+
+@Test func colonCardNeedsTwoCharactersAndAResult() throws {
+  let trigger = colon()
+  _ = type(trigger, ":R")
+  #expect(trigger.query == "r")
+  #expect(!trigger.visible)
+  _ = type(trigger, "O")
+  #expect(trigger.results.count == 2)
+  _ = type(trigger, "x")
+  #expect(!trigger.visible)
+  #expect(trigger.handle(.enter) == .pass)
+  #expect(trigger.query == nil)
+}
+
+@Test func colonPicksWithKeysAndLearnsTheSpacedQuery() throws {
+  let trigger = colon(["red rose", "red heart"])
+  _ = type(trigger, ":red_")
+  #expect(trigger.searchText == "red ")
+  #expect(trigger.handle(.down) == .consume)
+  #expect(trigger.handle(.down) == .consume)
+  #expect(trigger.handle(.up) == .consume)
+  #expect(trigger.selectedIndex == 1)
+  #expect(trigger.handle(.tab) == .insert(emoji: "<red heart>", deleting: 5, query: "red "))
+  #expect(!trigger.visible)
+  _ = type(trigger, " :re")
+  #expect(trigger.handle(.enter) == .insert(emoji: "<red rose>", deleting: 3, query: "re"))
+  _ = type(trigger, ":re")
+  #expect(trigger.handle(.text(":")) == .insert(emoji: "<red rose>", deleting: 3, query: "re"))
+  _ = type(trigger, ":re")
+  _ = trigger.handle(.down)
+  #expect(trigger.handle(.text(":")) == .insert(emoji: "<red heart>", deleting: 3, query: "re"))
+}
+
+@Test func colonLeavesLiteralTextAloneOnOtherInput() throws {
+  for key in [ColonKey.text("."), .text("é"), .text(" "), .other, .up, .enter] {
+    let trigger = colon()
+    _ = type(trigger, ":r")
+    #expect(trigger.handle(key) == .pass, "\(key)")
+    #expect(trigger.query == nil)
+  }
+  let trigger = colon()
+  _ = type(trigger, ":D")
+  #expect(trigger.handle(.text(")")) == .pass)
+  _ = type(trigger, " :ro")
+  #expect(trigger.handle(.escape) == .consume)
+  #expect(!trigger.visible)
+  #expect(trigger.handle(.text("d")) == .pass)
+  #expect(!trigger.visible)
+  _ = type(trigger, " :ro")
+  trigger.reset()
+  #expect(!trigger.visible)
+  _ = type(trigger, ":ro")
+  #expect(trigger.visible)
+}
+
+@Test func colonBackspaceAndLengthLimit() throws {
+  let trigger = colon()
+  _ = type(trigger, ":ros")
+  #expect(trigger.handle(.backspace) == .pass)
+  #expect(trigger.query == "ro")
+  _ = trigger.handle(.backspace)
+  _ = trigger.handle(.backspace)
+  #expect(trigger.query == "")
+  #expect(trigger.handle(.backspace) == .pass)
+  #expect(trigger.query == nil)
+  _ = type(trigger, ":ros")
+  #expect(trigger.handle(.deleteWord) == .delete(characters: 4))
+  #expect(trigger.query == nil)
+  _ = type(trigger, ":ros")
+  #expect(trigger.visible)
+  let long = String(repeating: "a", count: ColonTrigger.queryLimit)
+  _ = type(trigger, " :" + long)
+  #expect(trigger.query == long)
+  #expect(trigger.handle(.text("a")) == .pass)
+  #expect(trigger.query == nil)
 }

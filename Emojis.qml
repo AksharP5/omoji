@@ -28,12 +28,15 @@ Item {
   property alias preferencesReady: preferences.ready
   property alias preferencesError: preferences.error
   property bool settingsOpen: false
+  property string payloadCard: ""
+  readonly property bool compact: (root.payloadCard || preferences.card) === "compact"
+  readonly property int compactRows: root.settingsOpen ? 6 : Math.max(1, Math.min(6, root.results.length))
   property var pasteCommand: ["wtype", "-M", "shift", "-k", "Insert", "-m", "shift"]
   property var copyCommand: ["wl-copy", "--type", "text/plain"]
   readonly property bool historyReady: history.ready
   readonly property string learningError: history.error
   readonly property int selectedIndex: resultList.currentIndex
-  readonly property int rowHeight: Math.max(Style.space(52), Style.font.title + Style.spacing.md * 2)
+  readonly property int rowHeight: Math.max(Style.space(root.compact ? 40 : 52), Style.font.title + Style.spacing.md * 2)
   readonly property int padding: Style.spacing.panelPadding
 
   signal copied(string emoji)
@@ -43,6 +46,11 @@ Item {
     root.opening += 1
     root.error = ""
     root.settingsOpen = false
+    root.payloadCard = ""
+    try {
+      var requested = JSON.parse(payloadJson).card
+      if (requested === "compact" || requested === "full") root.payloadCard = requested
+    } catch (failure) {}
     searchInput.text = ""
     root.opened = true
     root.rebuild()
@@ -276,9 +284,14 @@ Item {
     BorderSurface {
       id: card
       objectName: "omoji-card"
-      width: Math.min(Style.space(640), panel.width - Style.gapsOut * 2)
-      height: Math.min(Style.space(484), panel.height - Style.gapsOut * 2)
+      readonly property real maxHeight: panel.height - Style.gapsOut * 2
+      readonly property real compactChrome: Math.ceil(contentTopInset + contentBottomInset + searchHeader.height + 1
+        + Style.spacing.sm * (2 + (status.visible ? 1 : 0)) + status.height)
+      width: Math.min(Style.space(root.compact ? 420 : 640), panel.width - Style.gapsOut * 2)
+      height: root.compact ? Math.min(compactChrome + root.compactRows * root.rowHeight, maxHeight) : Math.min(Style.space(484), maxHeight)
       anchors.centerIn: parent
+      // Keep the compact card's top still while its height follows the results.
+      anchors.verticalCenterOffset: root.compact ? (height - Math.min(compactChrome + 6 * root.rowHeight, maxHeight)) / 2 : 0
       radius: Style.cornerRadius
       color: Commons.Color.menu.background
       borderSpec: Border.surfaceSpec("menu", "border", Commons.Color.menu.border, Math.max(1, Style.space(2)))
@@ -301,7 +314,7 @@ Item {
         Item {
           id: searchHeader
           width: parent.width
-          height: Style.space(54)
+          height: Style.space(root.compact ? 40 : 54)
 
           Flickable {
             id: searchViewport
@@ -436,12 +449,12 @@ Item {
                 anchors.left: parent.left
                 anchors.leftMargin: Style.spacing.md
                 anchors.verticalCenter: parent.verticalCenter
-                width: Style.space(36)
+                width: Style.space(root.compact ? 28 : 36)
                 horizontalAlignment: Text.AlignHCenter
                 text: modelData.e
                 textFormat: Text.PlainText
                 font.family: "Noto Color Emoji"
-                font.pixelSize: Style.space(27)
+                font.pixelSize: Style.space(root.compact ? 20 : 27)
               }
 
               Text {

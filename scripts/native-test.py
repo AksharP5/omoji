@@ -25,6 +25,9 @@ def run_case(directory, state, phase, omarchy_path):
         (case_dir / "plugin").unlink()
         (case_dir / "plugin").symlink_to(broken_plugin, target_is_directory=True)
     preferences = state.with_name("config.json")
+    if phase == "compact-card":
+        preferences.parent.mkdir(parents=True, exist_ok=True)
+        preferences.write_text(json.dumps({"version": 1, "defaultAction": "paste", "card": "compact", "future": [1]}))
     if phase in ["first-pick", "restart", "copy-failure", "start-failure", "reopen", "corrupt", "ctrl-paste"]:
         preferences.parent.mkdir(parents=True, exist_ok=True)
         preferences.write_text(json.dumps({"version": 1, "defaultAction": "copy"}))
@@ -37,6 +40,9 @@ ShellRoot {
   property int ticks: 0
   property bool started: false
   property bool finished: false
+  property int compactStep: 0
+  property real compactTop: 0
+  property real compactWidth: 0
   property string phase: %s
   function fail(message) { console.error("NATIVE FAIL:", message); Qt.exit(1) }
   function find(item, name) {
@@ -74,9 +80,9 @@ ShellRoot {
       : test.phase === "reopen" ? ["bash", "-c", "sleep 0.3"]
       : [test.phase === "copy-failure" ? "false" : "true"]
     Component.onCompleted: {
-      // Exercise lifecycle calls without taking the user's keyboard focus.
+      // Compact layout needs mapped-window geometry; other cases stay hidden.
       var panel = picker.data.find(function(item) { return item.objectName === "omoji-window" })
-      panel.shown = false
+      if (test.phase !== "compact-card") panel.shown = false
     }
     onPasted: function(emoji) {
       if (["paste", "ctrl-paste"].indexOf(test.phase) === -1) { test.fail("unexpected paste"); return }
@@ -121,6 +127,11 @@ ShellRoot {
       }
       if ((!picker.preferencesReady && !picker.preferencesError) || !picker.catalog.length || (!picker.historyReady && !picker.learningError) || test.started) return
       test.started = true
+      if (test.phase === "compact-card") {
+        picker.open('{"card":"compact"}')
+        picker.filterText = "flower"
+        return
+      }
       if (test.phase === "page-navigation") {
         picker.open("{}")
         picker.filterText = "rocket"
@@ -202,6 +213,55 @@ ShellRoot {
           picker.handleKey({ key: Qt.Key_Return, modifiers: Qt.ControlModifier })
         } else picker.activate(index)
       }
+    }
+  }
+  Timer {
+    interval: 100
+    running: test.started && test.phase === "compact-card"
+    repeat: true
+    onTriggered: {
+      var panel = picker.data.find(function(item) { return item.objectName === "omoji-window" })
+      if (!panel.backingWindowVisible) return
+      var card = test.find(panel.contentItem, "omoji-card")
+      var list = test.find(panel.contentItem, "emoji-results")
+      if (test.compactStep < 3) {
+        var rows = test.compactStep === 0 ? 6 : 1
+        if (!picker.compact || Math.abs(list.height - rows * picker.rowHeight) > 1) {
+          test.fail("compact card did not fit the visible result rows"); return
+        }
+        if (test.compactStep === 0) {
+          test.compactTop = card.y
+          test.compactWidth = card.width
+        } else if (Math.abs(card.y - test.compactTop) > 1) {
+          test.fail("compact card moved its top when results changed"); return
+        }
+        if (test.compactStep === 0) picker.filterText = "tulip"
+        if (test.compactStep === 1) picker.filterText = "no-such-emoji-name"
+        if (test.compactStep === 2) picker.toggleSettings()
+      } else if (test.compactStep === 3) {
+        var menu = test.find(panel.contentItem, "omoji-action-settings")
+        if (!menu.visible || menu.y + menu.height > card.height || list.height < 6 * picker.rowHeight) {
+          test.fail("compact settings did not fit in the card"); return
+        }
+        picker.closeSettings()
+        picker.error = "Could not copy. Try again."
+      } else if (test.compactStep === 4) {
+        if (list.height < picker.rowHeight || card.y + card.height > panel.height) {
+          test.fail("compact error state clipped the results or card"); return
+        }
+        picker.open('{"card":"full"}')
+      } else if (test.compactStep === 5) {
+        if (picker.compact || card.width <= test.compactWidth) { test.fail("full payload did not override compact preference"); return }
+        picker.open("{}")
+      } else {
+        if (!picker.compact || picker.payloadCard !== "") { test.fail("card payload leaked into the next opening"); return }
+        picker.toggleSettings()
+        test.find(panel.contentItem, "omoji-action-settings").choose("copy")
+        if (picker.defaultAction !== "copy") { test.fail("compact preference could not save the default action"); return }
+        test.finished = true
+        return
+      }
+      test.compactStep++
     }
   }
   Timer {
@@ -293,6 +353,11 @@ def main():
         run_case(directory, Path(directory) / "catalog-failure-state/history.json", "catalog-failure", omarchy_path)
         run_case(directory, Path(directory) / "search-editing-state/history.json", "search-editing", omarchy_path)
         run_case(directory, Path(directory) / "page-navigation-state/history.json", "page-navigation", omarchy_path)
+        compact_state = Path(directory) / "compact-card-state/history.json"
+        run_case(directory, compact_state, "compact-card", omarchy_path)
+        assert json.loads(compact_state.with_name("config.json").read_text()) == {
+            "version": 1, "defaultAction": "copy", "card": "compact", "future": [1]
+        }
         print("Native learning, action defaults, copy/paste, failures, cancellation, persistence and corruption checks passed")
 
 

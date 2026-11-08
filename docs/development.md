@@ -24,11 +24,15 @@ swift test
 ./build-app.sh
 ```
 
+`./build-app.sh --dmg` builds a universal app and `build/omoji.dmg`. The app icon is drawn by `make-icon.swift` at build time. Pushing a `v<version>` tag that matches `manifest.json` runs `.github/workflows/release.yml`, which attaches `omoji.dmg` to the GitHub release.
+
 The tests use temporary preferences and history and replace copy and paste, so they do not touch the clipboard or type into other apps. Delayed-paste checks cover reopening and dismissing the picker and making another selection before a pending paste completes.
 
 ## Omarchy native checks
 
 The native tests require a running Omarchy Wayland session. They use temporary history and preferences, replace clipboard and paste commands, and suppress the picker window. They cover both default actions, the opposite shortcut, saved preferences, learning across restarts, failed commands, cancellation when reopening, and corrupt files. Catalog failures stay visible after opening, typing, and reopening the picker. Search editing checks cover query limits without losing text or undo history, and keep the cursor visible in long queries. Selection checks cover wrapping when a page step exceeds the result count.
+
+The compact-card case renders a picker in the isolated compositor to check empty, single-row and six-row layouts, fixed top positioning, settings and errors, payload overrides, and preservation of other preference keys. Other native cases suppress the window.
 
 To check another Omarchy checkout:
 
