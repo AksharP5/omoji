@@ -32,6 +32,8 @@ The tests use temporary preferences and history and replace copy and paste, so t
 
 The native tests require a running Omarchy Wayland session. They use temporary history and preferences, replace clipboard and paste commands, and suppress the picker window. They cover both default actions, the opposite shortcut, saved preferences, learning across restarts, failed commands, cancellation when reopening, and corrupt files. Catalog failures stay visible after opening, typing, and reopening the picker. Search editing checks cover query limits without losing text or undo history, and keep the cursor visible in long queries. Selection checks cover wrapping when a page step exceeds the result count.
 
+The compact-card case renders a picker in the isolated compositor to check empty, single-row and six-row layouts, fixed top positioning, settings and errors, payload overrides, and preservation of other preference keys. Other native cases suppress the window.
+
 To check another Omarchy checkout:
 
 ```sh

@@ -47,7 +47,7 @@ Tested on Omarchy **4.5.0** and **4.0.0.r7396.g526fe64-1**. Uses the Quickshell,
 
 omoji also runs as a small menu bar app on macOS 13 or later. It uses the same emoji catalog, search, and learning as the Omarchy plugin.
 
-[Download omoji.dmg](https://github.com/AksharP5/omoji/releases/latest/download/omoji.dmg), open it, and drag omoji to Applications. The app is not notarized, so macOS blocks the first launch. Open omoji once, then go to System Settings › Privacy & Security and click **Open Anyway**. To build it yourself with the Xcode command line tools:
+Tagged releases will provide [omoji.dmg](https://github.com/AksharP5/omoji/releases/latest/download/omoji.dmg). Open the DMG and drag omoji to Applications. The app is not notarized, so macOS blocks the first launch. Open omoji once, then go to System Settings › Privacy & Security and click **Open Anyway**. Until the first release is published, build it yourself with the Xcode command line tools:
 
 ```sh
 git clone https://github.com/AksharP5/omoji
@@ -61,7 +61,7 @@ Press **Control-Command-E** to open the picker. The keys are the same as on Omar
 
 - **Change Shortcut…** records a new key combination for the picker.
 - **Compact Card** uses a smaller card that opens at the text cursor when the app reports one.
-- **Type : to Search Emoji** works in any app: type `:` and at least two letters, such as `:rose`. Up and Down select, Return or Tab inserts the emoji, Escape closes the list, and a closing `:` inserts the first result. Terminal apps are skipped. omoji keeps only the current `:` word in memory, never other typing.
+- **Type : to Search Emoji** works in any app: type `:` and at least two letters, such as `:rose`. Up and Down select, Return or Tab inserts the emoji, Escape closes the list, and a closing `:` inserts the highlighted result. Terminal apps are skipped. omoji keeps only the current `:` word in memory, never other typing.
 - **Open at Login** starts omoji when you log in.
 
 Paste and Type : need Accessibility permission (System Settings › Privacy & Security › Accessibility). Until you allow it, the picker shows a short guide with an **Open Settings** button before the emoji list. If you choose **Not Now**, a pasted emoji stays on the clipboard and the picker tells you what to do. Copy works without any permission.
