@@ -216,6 +216,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   }
 
   private func show() {
+    endColon()
     model.needsAccess = accessNeeded()
     if colonItem.state == .on && colonTap == nil && AXIsProcessTrusted() { startColon() }
     let compact = model.picker.card == .compact
@@ -260,6 +261,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
           // Chromium apps without a web accessibility tree report an empty box at the window edge.
           rect.height > 0, let primary = NSScreen.screens.first else { return nil }
     return NSRect(x: rect.minX, y: primary.frame.maxY - rect.maxY, width: rect.width, height: rect.height)
+  }
+
+  /// The last character before the caret, "" at the start of a field, or nil when the focused app does not say.
+  private static func textBeforeCaret() -> String? {
+    let system = AXUIElementCreateSystemWide()
+    AXUIElementSetMessagingTimeout(system, 0.1)
+    var focused: CFTypeRef?
+    var count: CFTypeRef?
+    var range: CFTypeRef?
+    var text: CFTypeRef?
+    var selection = CFRange()
+    guard AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
+          let focused, CFGetTypeID(focused) == AXUIElementGetTypeID() else { return nil }
+    let element = focused as! AXUIElement
+    // Only text elements count characters; Chromium reports a caret on buttons too.
+    guard AXUIElementCopyAttributeValue(element, kAXNumberOfCharactersAttribute as CFString, &count) == .success,
+          AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &range) == .success,
+          let range, CFGetTypeID(range) == AXValueGetTypeID(),
+          AXValueGetValue(range as! AXValue, .cfRange, &selection) else { return nil }
+    guard selection.location > 0 else { return "" }
+    // Two UTF-16 units, so an emoji before the caret is read whole.
+    var before = CFRange(location: max(0, selection.location - 2), length: min(2, selection.location))
+    guard let value = AXValueCreate(.cfRange, &before),
+          AXUIElementCopyParameterizedAttributeValue(element, kAXStringForRangeParameterizedAttribute as CFString, value, &text) == .success
+    else { return nil }
+    return (text as? String).map { $0.last.map(String.init) ?? "" }
   }
 
   private func hide() {
@@ -415,7 +442,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   }
 
   private func setUpColon(_ picker: OmojiCore.Picker) {
-    colonModel = ColonModel(trigger: ColonTrigger { [weak picker] in picker?.search($0) ?? [] })
+    colonModel = ColonModel(trigger: ColonTrigger(search: { [weak picker] in picker?.search($0) ?? [] }, textBeforeCaret: Self.textBeforeCaret))
     colonPanel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 320, height: 200),
                          styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
     colonPanel.isOpaque = false
@@ -433,15 +460,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
       self.colonHeight = height
       if self.colonModel.trigger.visible { self.colonPanel.setFrame(Self.place(NSSize(width: 320, height: height), near: self.colonCaret), display: true) }
     }
+    // A swipe or Mission Control can switch apps without a key or click, so fix the text in the app the user left.
     NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
+                                                      object: nil, queue: .main) { [weak self] _ in self?.endColon() }
+    // A Space switch inside one app moves focus to another window, where the held count means nothing.
+    NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification,
                                                       object: nil, queue: .main) { [weak self] _ in
-      guard let self else { return }
-      // A swipe or Mission Control can switch apps without a key or click, so fix the text in the app the user left.
-      if case let .replace(deleting, text, _) = self.colonModel.trigger.handle(.escape) {
-        Self.type(text, deleting: deleting) { [app = self.colonApp] in $0.postToPid(app) }
-      }
+      guard let self, NSWorkspace.shared.frontmostApplication?.processIdentifier == self.colonApp else { return }
+      self.colonModel.trigger.reset()
       self.refreshColon()
     }
+  }
+
+  /// Puts the real ":name" back in the app where the query started and stops following it.
+  private func endColon() {
+    if case let .replace(deleting, text, _) = colonModel.trigger.handle(.escape) {
+      Self.type(text, deleting: deleting) { [app = colonApp] in $0.postToPid(app) }
+    }
+    colonModel.trigger.reset()
+    refreshColon()
   }
 
   private func startColon() {
@@ -489,6 +526,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
           app != Bundle.main.bundleIdentifier, !Self.terminals.contains(app) else { return Unmanaged.passUnretained(event) }
     let trigger = colonModel.trigger
     let tracking = trigger.query != nil
+    // Press-and-hold drops letter repeats in the app, so counting them would delete text before the colon later.
+    if tracking, type == .keyDown, event.getIntegerValueField(.keyboardEventAutorepeat) != 0,
+       case .text = Self.colonKey(event) { return nil }
     let action = trigger.handle(type == .keyDown ? Self.colonKey(event) : .other)
     if !tracking && trigger.query != nil { colonApp = NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0 }
     if tracking || trigger.query != nil { DispatchQueue.main.async { self.refreshColon() } }
@@ -522,19 +562,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
   private static func colonKey(_ event: CGEvent) -> ColonKey {
     let code = Int(event.getIntegerValueField(.keyboardEventKeycode))
+    let modifiers = event.flags.intersection([.maskCommand, .maskControl, .maskShift, .maskAlternate])
+    if code == kVK_Delete {
+      switch modifiers.subtracting(.maskShift) {
+      case []: return .backspace
+      case .maskAlternate: return .deleteWord
+      default: return .other
+      }
+    }
     // Shift-Up, Command-Return and similar keep their normal meaning in the app.
-    if [kVK_UpArrow, kVK_DownArrow, kVK_Return, kVK_ANSI_KeypadEnter, kVK_Tab, kVK_Delete].contains(code),
-       !event.flags.intersection([.maskCommand, .maskControl, .maskShift, .maskAlternate]).isEmpty { return .other }
+    if [kVK_UpArrow, kVK_DownArrow, kVK_Return, kVK_ANSI_KeypadEnter, kVK_Tab].contains(code),
+       !modifiers.isEmpty { return .other }
     switch code {
     case kVK_UpArrow: return .up
     case kVK_DownArrow: return .down
     case kVK_Return, kVK_ANSI_KeypadEnter: return .enter
     case kVK_Tab: return .tab
     case kVK_Escape: return .escape
-    case kVK_Delete: return .backspace
     default:
       guard event.flags.intersection([.maskCommand, .maskControl]).isEmpty,
-            let characters = NSEvent(cgEvent: event)?.characters, characters.count == 1 else { return .other }
+            let characters = NSEvent(cgEvent: event)?.characters, characters.count == 1,
+            // Arrow, Home, Page and F keys move the caret or do nothing; they are not text.
+            !(0xF700...0xF8FF).contains(characters.unicodeScalars.first!.value) else { return .other }
       return .text(characters.first!)
     }
   }

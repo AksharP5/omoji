@@ -355,8 +355,9 @@ private final class Fixture {
   #expect(try String(contentsOf: fixture.configURL, encoding: .utf8) == config)
 }
 
-private func colon(_ names: [String] = ["rose", "rosette"]) -> ColonTrigger {
-  ColonTrigger { query in names.filter { $0.contains(query) }.map { Emoji(e: "<\($0)>", n: $0) } }
+private func colon(_ names: [String] = ["rose", "rosette"], before: String? = nil) -> ColonTrigger {
+  ColonTrigger(search: { query in names.filter { $0.contains(query) }.map { Emoji(e: "<\($0)>", n: $0) } },
+               textBeforeCaret: { before })
 }
 
 private func type(_ trigger: ColonTrigger, _ text: String) -> [ColonAction] {
@@ -376,11 +377,37 @@ private let mark = ColonAction.replace(deleting: 0, text: ColonTrigger.mark, rep
     _ = type(trigger, text)
     #expect(!trigger.visible, "\(text)")
   }
-  let trigger = colon()
-  _ = type(trigger, "ab")
-  _ = trigger.handle(.backspace)
+}
+
+@Test func colonAsksTheAppWhatIsBeforeTheCaretAfterADeleteOrMove() throws {
+  for (before, starts) in [("a", false), ("1", false), (" ", true), ("🌹", true), ("❤️", true), ("☀️", true), ("", true), (nil, true)] as [(String?, Bool)] {
+    for key in [ColonKey.backspace, .other, .escape] {
+      let trigger = colon(before: before)
+      _ = type(trigger, "ab:ro")
+      _ = trigger.handle(.escape)
+      _ = trigger.handle(key)
+      _ = type(trigger, ":ro")
+      #expect(trigger.visible == starts, "\(String(describing: before)) \(key)")
+    }
+  }
+  let picked = colon(before: "a")
+  _ = type(picked, " :ro")
+  #expect(picked.handle(.enter) == .insert(emoji: "<rose>", deleting: 3, query: "ro"))
+  for delete in [[ColonKey.backspace, .backspace, .backspace], [.deleteWord]] {
+    _ = type(picked, ":ro")
+    for key in delete { _ = picked.handle(key) }
+    _ = type(picked, ":ro")
+    #expect(picked.visible, "\(delete)")
+    _ = picked.handle(.enter)
+  }
+  let trigger = colon(before: "a")
   _ = type(trigger, ":ro")
-  #expect(!trigger.visible)
+  _ = trigger.handle(.backspace)
+  _ = trigger.handle(.backspace)
+  _ = trigger.handle(.backspace)
+  _ = trigger.handle(.backspace)
+  _ = type(trigger, " :ro")
+  #expect(trigger.visible)
 }
 
 @Test func colonCardNeedsTwoCharactersAndAResult() throws {
@@ -408,8 +435,11 @@ private let mark = ColonAction.replace(deleting: 0, text: ColonTrigger.mark, rep
   #expect(!trigger.visible)
   _ = type(trigger, " :re")
   #expect(trigger.handle(.enter) == .insert(emoji: "<red rose>", deleting: 3, query: "re"))
-  _ = type(trigger, " :re")
+  _ = type(trigger, ":re")
   #expect(trigger.handle(.text(":")) == .insert(emoji: "<red rose>", deleting: 3, query: "re"))
+  _ = type(trigger, ":re")
+  _ = trigger.handle(.down)
+  #expect(trigger.handle(.text(":")) == .insert(emoji: "<red heart>", deleting: 3, query: "re"))
 }
 
 @Test func colonPutsTheRealColonBackOnOtherInput() throws {
@@ -444,6 +474,11 @@ private let mark = ColonAction.replace(deleting: 0, text: ColonTrigger.mark, rep
   #expect(trigger.query == "")
   #expect(trigger.handle(.backspace) == .pass)
   #expect(trigger.query == nil)
+  _ = type(trigger, ":ros")
+  #expect(trigger.handle(.deleteWord) == .replace(deleting: 4, text: "", replay: false))
+  #expect(trigger.query == nil)
+  _ = type(trigger, ":ros")
+  #expect(trigger.visible)
   let long = String(repeating: "a", count: ColonTrigger.queryLimit)
   _ = type(trigger, " :" + long)
   #expect(trigger.query == long)
