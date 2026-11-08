@@ -162,8 +162,9 @@ public final class Picker {
 
   /// Switches the card size; the picker draws it the next time it opens.
   public func toggleCard() -> Bool {
+    let requested: Card = card == .compact ? .full : .compact
     preferences.reload()
-    return preferences.choose(card == .compact ? .full : .compact)
+    return preferences.choose(requested)
   }
 
   public func search(_ query: String) -> [Emoji] {

@@ -355,6 +355,18 @@ private final class Fixture {
   #expect(try String(contentsOf: fixture.configURL, encoding: .utf8) == config)
 }
 
+@Test func cardToggleKeepsTheRequestedModeAfterAnExternalEdit() throws {
+  let fixture = try Fixture()
+  let picker = fixture.open()
+  #expect(picker.card == .full)
+  let edited = "{\"version\":1,\"defaultAction\":\"copy\",\"card\":\"compact\",\"future\":[1]}"
+  try edited.write(to: fixture.configURL, atomically: true, encoding: .utf8)
+  #expect(picker.toggleCard())
+  #expect(picker.card == .compact)
+  #expect(picker.defaultAction == .copy)
+  #expect(try String(contentsOf: fixture.configURL, encoding: .utf8) == edited)
+}
+
 private func colon(_ names: [String] = ["rose", "rosette"], before: String? = nil) -> ColonTrigger {
   ColonTrigger(search: { query in names.filter { $0.contains(query) }.map { Emoji(e: "<\($0)>", n: $0) } },
                textBeforeCaret: { before })
