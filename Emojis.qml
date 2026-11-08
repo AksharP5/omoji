@@ -70,7 +70,7 @@ Item {
 
   function moveSelection(delta) {
     if (!root.results.length) return
-    resultList.currentIndex = (resultList.currentIndex + delta + root.results.length) % root.results.length
+    resultList.currentIndex = (resultList.currentIndex + (delta % root.results.length) + root.results.length) % root.results.length
     resultList.positionViewAtIndex(resultList.currentIndex, ListView.Contain)
     pointerGate.reset()
   }
