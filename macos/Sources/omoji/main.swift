@@ -54,6 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   private static let typedMark: Int64 = 0x6F6D6A69
   static let colonEventsMask: CGEventMask = (1 << CGEventType.keyDown.rawValue)
     | (1 << CGEventType.leftMouseDown.rawValue) | (1 << CGEventType.rightMouseDown.rawValue)
+    | (1 << CGEventType.otherMouseDown.rawValue)
   private static let terminals: Set<String> = ["com.apple.Terminal", "com.googlecode.iterm2", "dev.warp.Warp-Stable",
     "net.kovidgoyal.kitty", "com.mitchellh.ghostty", "org.alacritty", "com.github.wez.wezterm"]
 
@@ -556,7 +557,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
       }
     }
     // Shift-Up, Command-Return and similar keep their normal meaning in the app.
-    if [kVK_UpArrow, kVK_DownArrow, kVK_Return, kVK_ANSI_KeypadEnter, kVK_Tab].contains(code),
+    if [kVK_UpArrow, kVK_DownArrow, kVK_Return, kVK_ANSI_KeypadEnter, kVK_Tab, kVK_Escape].contains(code),
        !modifiers.isEmpty { return .other }
     switch code {
     case kVK_UpArrow: return .up
