@@ -247,7 +247,7 @@ struct AccessView: View {
     VStack(spacing: 12) {
       Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 56, height: 56)
       Text("Allow omoji to type for you").font(.title3.weight(.semibold))
-      Text("To paste emoji into your apps, macOS needs you to turn on omoji in System Settings › Privacy & Security › Accessibility.")
+      Text("To paste emoji into your apps, macOS needs you to turn on omoji in System Settings › Privacy & Security › Accessibility. If omoji is already on there, remove it with − and add it again. macOS does this after each update.")
         .multilineTextAlignment(.center)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)

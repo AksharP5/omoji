@@ -51,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   private var colonHeight: CGFloat = 100
   private var colonTap: CFMachPort?
   private var colonSource: CFRunLoopSource?
+  private var colonApp: pid_t = 0
   private static let typedMark: Int64 = 0x6F6D6A69
   private static let terminals: Set<String> = ["com.apple.Terminal", "com.googlecode.iterm2", "dev.warp.Warp-Stable",
     "net.kovidgoyal.kitty", "com.mitchellh.ghostty", "org.alacritty", "com.github.wez.wezterm"]
@@ -256,7 +257,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                                                      range, &bounds) == .success,
           let bounds, CFGetTypeID(bounds) == AXValueGetTypeID(),
           AXValueGetValue(bounds as! AXValue, .cgRect, &rect),
-          rect != .zero, let primary = NSScreen.screens.first else { return nil }
+          // Chromium apps without a web accessibility tree report an empty box at the window edge.
+          rect.height > 0, let primary = NSScreen.screens.first else { return nil }
     return NSRect(x: rect.minX, y: primary.frame.maxY - rect.maxY, width: rect.width, height: rect.height)
   }
 
@@ -433,16 +435,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
                                                       object: nil, queue: .main) { [weak self] _ in
-      self?.colonModel.trigger.reset()
-      self?.refreshColon()
+      guard let self else { return }
+      // A swipe or Mission Control can switch apps without a key or click, so fix the text in the app the user left.
+      if case let .replace(deleting, text, _) = self.colonModel.trigger.handle(.escape) {
+        Self.type(text, deleting: deleting) { [app = self.colonApp] in $0.postToPid(app) }
+      }
+      self.refreshColon()
     }
   }
 
   private func startColon() {
     let mask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.leftMouseDown.rawValue) | (1 << CGEventType.rightMouseDown.rawValue)
     guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
-                                      eventsOfInterest: CGEventMask(mask), callback: { _, type, event, data in
-      Unmanaged<AppDelegate>.fromOpaque(data!).takeUnretainedValue().colonEvent(type, event)
+                                      eventsOfInterest: CGEventMask(mask), callback: { proxy, type, event, data in
+      Unmanaged<AppDelegate>.fromOpaque(data!).takeUnretainedValue().colonEvent(proxy, type, event)
     }, userInfo: Unmanaged.passUnretained(self).toOpaque()) else {
       stopColon()
       let alert = NSAlert()
@@ -471,7 +477,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     refreshColon()
   }
 
-  private func colonEvent(_ type: CGEventType, _ event: CGEvent) -> Unmanaged<CGEvent>? {
+  private func colonEvent(_ proxy: CGEventTapProxy, _ type: CGEventType, _ event: CGEvent) -> Unmanaged<CGEvent>? {
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
       colonModel.trigger.reset()
       refreshColon()
@@ -484,15 +490,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let trigger = colonModel.trigger
     let tracking = trigger.query != nil
     let action = trigger.handle(type == .keyDown ? Self.colonKey(event) : .other)
+    if !tracking && trigger.query != nil { colonApp = NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0 }
     if tracking || trigger.query != nil { DispatchQueue.main.async { self.refreshColon() } }
     switch action {
     case .pass: return Unmanaged.passUnretained(event)
     case .consume: return nil
     case let .insert(emoji, deleting, query):
-      DispatchQueue.main.async {
-        Self.type(emoji, deleting: deleting)
-        self.model.picker.remember(query, emoji)
-      }
+      Self.type(emoji, deleting: deleting) { $0.tapPostEvent(proxy) }
+      DispatchQueue.main.async { self.model.picker.remember(query, emoji) }
+      return nil
+    case let .replace(deleting, text, replay):
+      // Hold this key back and send it again after the text, so it lands in order.
+      Self.type(text, deleting: deleting) { $0.tapPostEvent(proxy) }
+      if replay, let copy = event.copy() { copy.tapPostEvent(proxy) }
       return nil
     }
   }
@@ -504,7 +514,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
       return
     }
     if !colonPanel.isVisible {
-      colonCaret = Self.caretRect()
+      colonCaret = Self.caretRect() ?? NSRect(origin: NSEvent.mouseLocation, size: .zero)
       colonPanel.setFrame(Self.place(NSSize(width: 320, height: colonHeight), near: colonCaret), display: true)
       colonPanel.orderFrontRegardless()
     }
@@ -529,23 +539,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
   }
 
-  /// Replaces the typed ":query" with the emoji without touching the clipboard.
-  private static func type(_ emoji: String, deleting count: Int) {
+  /// Deletes characters before the caret, then types text into the focused app without touching the clipboard.
+  /// Posting through the tap puts the events ahead of keys the user already pressed.
+  private static func type(_ text: String, deleting count: Int, post: (CGEvent) -> Void) {
     let source = CGEventSource(stateID: .privateState)
-    let post = { (key: Int, text: String?) in
+    for _ in 0..<count {
       for down in [true, false] {
-        guard let event = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(key), keyDown: down) else { continue }
-        if let text {
-          let units = Array(text.utf16)
-          event.keyboardSetUnicodeString(stringLength: units.count, unicodeString: units)
-        }
+        guard let event = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(kVK_Delete), keyDown: down) else { continue }
         event.flags = []
         event.setIntegerValueField(.eventSourceUserData, value: typedMark)
-        event.post(tap: .cghidEventTap)
+        post(event)
       }
     }
-    for _ in 0..<count { post(kVK_Delete, nil) }
-    post(kVK_ANSI_A, emoji)
+    var chunk = ""
+    // Some apps read at most 20 UTF-16 units from one key event.
+    for character in text + "\u{0}" {
+      guard character == "\u{0}" || chunk.utf16.count + character.utf16.count > 20 else {
+        chunk.append(character)
+        continue
+      }
+      let units = Array(chunk.utf16)
+      for down in [true, false] where !units.isEmpty {
+        guard let event = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(kVK_ANSI_A), keyDown: down) else { continue }
+        event.keyboardSetUnicodeString(stringLength: units.count, unicodeString: units)
+        event.flags = []
+        event.setIntegerValueField(.eventSourceUserData, value: typedMark)
+        post(event)
+      }
+      chunk = String(character)
+    }
   }
 
   private func toggle() {

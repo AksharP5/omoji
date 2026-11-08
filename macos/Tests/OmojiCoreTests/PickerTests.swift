@@ -363,10 +363,12 @@ private func type(_ trigger: ColonTrigger, _ text: String) -> [ColonAction] {
   text.map { trigger.handle(.text($0)) }
 }
 
-@Test func colonStartsOnlyAfterABoundary() throws {
+private let mark = ColonAction.replace(deleting: 0, text: ColonTrigger.mark, replay: false)
+
+@Test func colonStartsOnlyAfterABoundaryAndShowsALookAlikeColon() throws {
   for text in [":ro", " :ro", "\n:ro", "(:ro", "[:ro", "{:ro", "\":ro", "':ro"] {
     let trigger = colon()
-    #expect(type(trigger, text).allSatisfy { $0 == .pass })
+    #expect(type(trigger, text).suffix(3) == [mark, .pass, .pass], "\(text)")
     #expect(trigger.visible, "\(text)")
   }
   for text in ["12:30", "http://", "a:ro", "::ro"] {
@@ -374,6 +376,11 @@ private func type(_ trigger: ColonTrigger, _ text: String) -> [ColonAction] {
     _ = type(trigger, text)
     #expect(!trigger.visible, "\(text)")
   }
+  let trigger = colon()
+  _ = type(trigger, "ab")
+  _ = trigger.handle(.backspace)
+  _ = type(trigger, ":ro")
+  #expect(!trigger.visible)
 }
 
 @Test func colonCardNeedsTwoCharactersAndAResult() throws {
@@ -382,12 +389,10 @@ private func type(_ trigger: ColonTrigger, _ text: String) -> [ColonAction] {
   #expect(trigger.query == "r")
   #expect(!trigger.visible)
   _ = type(trigger, "O")
-  #expect(trigger.query == "ro")
-  #expect(trigger.visible)
+  #expect(trigger.results.count == 2)
   _ = type(trigger, "x")
-  #expect(trigger.query == "rox")
   #expect(!trigger.visible)
-  #expect(trigger.handle(.enter) == .pass)
+  #expect(trigger.handle(.enter) == .replace(deleting: 4, text: ":ROx", replay: true))
   #expect(trigger.query == nil)
 }
 
@@ -400,29 +405,31 @@ private func type(_ trigger: ColonTrigger, _ text: String) -> [ColonAction] {
   #expect(trigger.handle(.up) == .consume)
   #expect(trigger.selectedIndex == 1)
   #expect(trigger.handle(.tab) == .insert(emoji: "<red heart>", deleting: 5, query: "red "))
-  #expect(trigger.query == nil)
+  #expect(!trigger.visible)
   _ = type(trigger, " :re")
   #expect(trigger.handle(.enter) == .insert(emoji: "<red rose>", deleting: 3, query: "re"))
   _ = type(trigger, " :re")
   #expect(trigger.handle(.text(":")) == .insert(emoji: "<red rose>", deleting: 3, query: "re"))
-  _ = type(trigger, " :re")
-  #expect(trigger.handle(.escape) == .consume)
-  #expect(!trigger.visible)
-  _ = type(trigger, "d")
-  #expect(trigger.query == nil)
 }
 
-@Test func colonCancelsOnOtherInput() throws {
-  for key in [ColonKey.text("."), .text("é"), .other, .escape, .up] {
+@Test func colonPutsTheRealColonBackOnOtherInput() throws {
+  for key in [ColonKey.text("."), .text("é"), .text(" "), .other, .up, .enter] {
     let trigger = colon()
     _ = type(trigger, ":r")
-    #expect(trigger.handle(key) == .pass)
+    #expect(trigger.handle(key) == .replace(deleting: 2, text: ":r", replay: true), "\(key)")
     #expect(trigger.query == nil)
   }
   let trigger = colon()
-  _ = type(trigger, ":ro")
+  _ = type(trigger, ":D")
+  #expect(trigger.handle(.text(")")) == .replace(deleting: 2, text: ":D", replay: true))
+  _ = type(trigger, " :ro")
+  #expect(trigger.handle(.escape) == .replace(deleting: 3, text: ":ro", replay: false))
+  #expect(!trigger.visible)
+  #expect(trigger.handle(.text("d")) == .pass)
+  #expect(!trigger.visible)
+  _ = type(trigger, " :ro")
   trigger.reset()
-  #expect(trigger.query == nil)
+  #expect(!trigger.visible)
   _ = type(trigger, ":ro")
   #expect(trigger.visible)
 }
@@ -435,10 +442,11 @@ private func type(_ trigger: ColonTrigger, _ text: String) -> [ColonAction] {
   _ = trigger.handle(.backspace)
   _ = trigger.handle(.backspace)
   #expect(trigger.query == "")
-  _ = trigger.handle(.backspace)
+  #expect(trigger.handle(.backspace) == .pass)
   #expect(trigger.query == nil)
-  _ = type(trigger, ":" + String(repeating: "a", count: ColonTrigger.queryLimit))
-  #expect(trigger.query?.count == ColonTrigger.queryLimit)
-  _ = type(trigger, "a")
+  let long = String(repeating: "a", count: ColonTrigger.queryLimit)
+  _ = type(trigger, " :" + long)
+  #expect(trigger.query == long)
+  #expect(trigger.handle(.text("a")) == .replace(deleting: long.count + 1, text: ":" + long, replay: true))
   #expect(trigger.query == nil)
 }
