@@ -7,13 +7,16 @@ Item {
 
   property string path: (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/omoji/config.json"
   property string defaultAction: "paste"
+  property string card: "full"
   property bool ready: false
   property string error: ""
 
   function choose(action) {
     if (!store.ready || store.error || (action !== "copy" && action !== "paste")) return false
     if (action === store.defaultAction) return true
-    preferencesFile.setText(JSON.stringify({ version: 1, defaultAction: action }) + "\n")
+    var config = JSON.parse(preferencesFile.text())
+    config.defaultAction = action
+    preferencesFile.setText(JSON.stringify(config) + "\n")
     if (store.error) return false
     store.defaultAction = action
     return true
@@ -43,10 +46,12 @@ Item {
         if (!config || config.version !== 1 || (config.defaultAction !== "copy" && config.defaultAction !== "paste"))
           throw new Error("Invalid preferences")
         store.defaultAction = config.defaultAction
+        store.card = config.card === "compact" ? "compact" : "full"
         store.error = ""
         store.ready = true
       } catch (failure) {
         store.defaultAction = "copy"
+        store.card = "full"
         store.error = String(failure)
       }
     }

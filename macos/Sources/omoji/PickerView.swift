@@ -6,9 +6,12 @@ struct PickerView: View {
   @ObservedObject var model: Model
   @FocusState private var searchFocused: Bool
   @State private var pointerOrigin = NSEvent.mouseLocation
-  private let rowHeight: CGFloat = 52
 
   private var picker: OmojiCore.Picker { model.picker }
+  private var compact: Bool { picker.card == .compact }
+  private var rowHeight: CGFloat { compact ? 40 : 52 }
+  private var padding: CGFloat { compact ? 12 : 16 }
+  private var headerHeight: CGFloat { compact ? 22 : 30 }
 
   var body: some View {
     let query = Binding(get: { picker.query }, set: { picker.query = $0 })
@@ -16,7 +19,7 @@ struct PickerView: View {
       HStack {
         TextField(picker.strings.t("search"), text: query)
           .textFieldStyle(.plain)
-          .font(.system(size: 22))
+          .font(.system(size: compact ? 16 : 22))
           .focused($searchFocused)
           .disabled(picker.settingsOpen)
           .accessibilityLabel(picker.strings.t("search"))
@@ -26,34 +29,38 @@ struct PickerView: View {
           .help(picker.strings.t("settingsShortcut").replacingOccurrences(of: "Ctrl+,", with: "⌘,"))
           .accessibilityLabel(picker.strings.t("settings"))
       }
-      .frame(height: 54)
+      .frame(height: headerHeight)
       Divider()
       GeometryReader { geometry in
         ZStack {
           results
           if let text = picker.emptyText {
-            Text(text).font(.title3).foregroundStyle(.secondary)
+            Text(text).font(compact ? .body : .title3).foregroundStyle(.secondary)
           }
         }
         .onAppear { picker.pageSize = max(1, Int(geometry.size.height / rowHeight)) }
         .onChange(of: geometry.size.height) { picker.pageSize = max(1, Int($0 / rowHeight)) }
       }
+      .frame(height: compact ? CGFloat(picker.settingsOpen ? 6 : min(6, max(1, picker.results.count))) * rowHeight : nil)
       .opacity(picker.settingsOpen ? 0.65 : 1)
       if let status = picker.statusText {
         Text(status).font(.callout).fixedSize(horizontal: false, vertical: true)
       }
     }
-    .padding(16)
+    .padding(padding)
     .overlay(alignment: .topTrailing) {
       if picker.settingsOpen {
         ZStack(alignment: .topTrailing) {
           Color.clear.contentShape(Rectangle()).onTapGesture { picker.closeSettings() }
-          SettingsView(model: model).padding(.top, 62).padding(.trailing, 16)
+          SettingsView(model: model).padding(.top, padding + headerHeight + 6).padding(.trailing, padding)
         }
       }
     }
     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
     .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.separator))
+    .fixedSize(horizontal: false, vertical: compact)
+    .reportHeight(model.onHeight)
+    .frame(maxHeight: .infinity, alignment: .top)
     .onChange(of: picker.opened) { if $0 { searchFocused = true } }
     .onChange(of: picker.settingsOpen) {
       guard !$0 else { return }
@@ -85,29 +92,81 @@ struct PickerView: View {
 
   private func row(_ index: Int, _ emoji: Emoji) -> some View {
     let selected = index == picker.selectedIndex
-    return HStack(spacing: 12) {
-      Text(emoji.e).font(.system(size: 27)).frame(width: 36)
-      Text(emoji.n).font(.system(size: 17)).lineLimit(1).truncationMode(.tail)
+    return EmojiRow(emoji: emoji, selected: selected, hint: picker.actionHint, compact: compact)
+      .contentShape(Rectangle())
+      .onContinuousHover {
+        // Only a pointer that moves picks a row, so results never jump under a resting pointer.
+        guard case .active = $0, NSEvent.mouseLocation != pointerOrigin else { return }
+        pointerOrigin = NSEvent.mouseLocation
+        picker.select(index)
+      }
+      .onTapGesture { picker.activate(index) }
+      .id(index)
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel(emoji.n)
+      .accessibilityAddTraits(selected ? .isSelected : [])
+  }
+}
+
+struct EmojiRow: View {
+  let emoji: Emoji
+  let selected: Bool
+  let hint: String
+  let compact: Bool
+
+  var body: some View {
+    HStack(spacing: compact ? 8 : 12) {
+      Text(emoji.e).font(.system(size: compact ? 20 : 27)).frame(width: compact ? 28 : 36)
+      Text(emoji.n).font(.system(size: compact ? 14 : 17)).lineLimit(1).truncationMode(.tail)
       Spacer()
       if selected {
-        Text(picker.actionHint).font(.caption).foregroundStyle(.secondary)
+        Text(hint).font(.caption).foregroundStyle(.secondary)
       }
     }
-    .padding(.horizontal, 12)
-    .frame(height: rowHeight)
+    .padding(.horizontal, compact ? 8 : 12)
+    .frame(height: compact ? 40 : 52)
     .background(selected ? Color.accentColor.opacity(0.25) : .clear, in: RoundedRectangle(cornerRadius: 8))
-    .contentShape(Rectangle())
-    .onContinuousHover {
-      // Only a pointer that moves picks a row, so results never jump under a resting pointer.
-      guard case .active = $0, NSEvent.mouseLocation != pointerOrigin else { return }
-      pointerOrigin = NSEvent.mouseLocation
-      picker.select(index)
+  }
+}
+
+struct ColonView: View {
+  @ObservedObject var model: ColonModel
+
+  private var trigger: ColonTrigger { model.trigger }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Text(":" + (trigger.query ?? "")).font(.system(size: 13)).foregroundStyle(.secondary).padding(.horizontal, 8)
+      ScrollViewReader { proxy in
+        ScrollView {
+          LazyVStack(spacing: 0) {
+            ForEach(Array(trigger.results.enumerated()), id: \.offset) { index, emoji in
+              EmojiRow(emoji: emoji, selected: index == trigger.selectedIndex, hint: "↵", compact: true)
+                .id(index)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(emoji.n)
+            }
+          }
+        }
+        .frame(height: CGFloat(min(6, trigger.results.count)) * 40)
+        .onChange(of: trigger.selectedIndex) { proxy.scrollTo($0) }
+        .onChange(of: trigger.results) { _ in proxy.scrollTo(0) }
+      }
     }
-    .onTapGesture { picker.activate(index) }
-    .id(index)
-    .accessibilityElement(children: .ignore)
-    .accessibilityLabel(emoji.n)
-    .accessibilityAddTraits(selected ? .isSelected : [])
+    .padding(8)
+    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+    .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.separator))
+    .fixedSize(horizontal: false, vertical: true)
+    .reportHeight(model.onHeight)
+    .frame(maxHeight: .infinity, alignment: .top)
+  }
+}
+
+extension View {
+  func reportHeight(_ report: @escaping (CGFloat) -> Void) -> some View {
+    background(GeometryReader { geometry in
+      Color.clear.onAppear { report(geometry.size.height) }.onChange(of: geometry.size.height) { report($0) }
+    })
   }
 }
 

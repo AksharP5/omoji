@@ -15,10 +15,14 @@ public struct Modifiers: OptionSet {
   public static let option = Modifiers(rawValue: 8)
 }
 
+public enum PasteResult {
+  case pasted, failed, needsAccess
+}
+
 /// The picker's behavior, kept apart from AppKit so it can be tested without a window.
 public final class Picker {
   public typealias Copy = (String) -> Bool
-  public typealias Paste = (_ isCurrent: @escaping () -> Bool, _ done: @escaping (Bool) -> Void) -> Void
+  public typealias Paste = (_ isCurrent: @escaping () -> Bool, _ done: @escaping (PasteResult) -> Void) -> Void
 
   let engine: EmojiEngine
   let history: HistoryStore
@@ -65,6 +69,7 @@ public final class Picker {
   }
 
   public var defaultAction: Action { preferences.error == nil ? preferences.defaultAction : .copy }
+  public var card: Card { preferences.card }
   public var queryTooLong: Bool { query.utf16.count > EmojiEngine.queryLimit }
   public var choicesEnabled: Bool { preferences.error == nil }
   public var actionHint: String { strings.t("enterAction").replacingOccurrences(of: "%1", with: strings.t(defaultAction.rawValue)) }
@@ -142,17 +147,32 @@ public final class Picker {
     paste({ [weak self] in
       guard let self else { return false }
       return self.opening == opening && !self.opened
-    }) { [weak self] pasted in
+    }) { [weak self] result in
       guard let self else { return }
-      if pasted {
+      if result == .pasted {
         self.history.remember(query, emoji)
       } else if self.opening == opening && !self.opened {
         self.opened = true
-        self.error = self.strings.t("pasteFailed")
+        self.error = self.strings.t(result == .needsAccess ? "pasteNeedsAccess" : "pasteFailed")
         self.onVisibilityChange(true)
         self.onChange()
       }
     }
+  }
+
+  /// Switches the card size; the picker draws it the next time it opens.
+  public func toggleCard() -> Bool {
+    preferences.reload()
+    return preferences.choose(card == .compact ? .full : .compact)
+  }
+
+  public func search(_ query: String) -> [Emoji] {
+    guard let catalog else { return [] }
+    return engine.search(catalog, query, history.choices)
+  }
+
+  public func remember(_ query: String, _ emoji: String) {
+    history.remember(query, emoji)
   }
 
   public func toggleSettings() {

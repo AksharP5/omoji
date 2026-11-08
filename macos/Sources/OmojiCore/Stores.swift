@@ -62,6 +62,10 @@ public final class HistoryStore {
   }
 }
 
+public enum Card: String {
+  case full, compact
+}
+
 public final class PreferencesStore {
   private struct Config: Codable {
     let version: Int
@@ -70,7 +74,9 @@ public final class PreferencesStore {
 
   let url: URL
   public private(set) var defaultAction = Action.paste
+  public private(set) var card = Card.full
   public private(set) var error: String?
+  private let json = JSContext()!
 
   public init(url: URL) {
     self.url = url
@@ -81,12 +87,15 @@ public final class PreferencesStore {
   func reload() {
     do {
       try StateFile.prepare(url, initial: "{\"version\":1,\"defaultAction\":\"paste\"}\n")
-      let config = try JSONDecoder().decode(Config.self, from: Data(contentsOf: url))
+      let data = try Data(contentsOf: url)
+      let config = try JSONDecoder().decode(Config.self, from: data)
       guard config.version == 1 else { throw EngineError(description: "Unsupported preferences") }
       defaultAction = config.defaultAction
+      card = (try JSONSerialization.jsonObject(with: data) as? [String: Any])?["card"] as? String == "compact" ? .compact : .full
       error = nil
     } catch {
       defaultAction = .copy
+      card = .full
       self.error = String(describing: error)
     }
   }
@@ -94,11 +103,31 @@ public final class PreferencesStore {
   func choose(_ action: Action) -> Bool {
     guard error == nil else { return false }
     if action == defaultAction { return true }
+    guard save("defaultAction", action.rawValue) else { return false }
+    defaultAction = action
+    return true
+  }
+
+  public func choose(_ card: Card) -> Bool {
+    guard error == nil else { return false }
+    if card == self.card { return true }
+    guard save("card", card.rawValue) else { return false }
+    self.card = card
+    return true
+  }
+
+  /// Rewrites only one key, so keys owned by the other platform or a newer version survive.
+  private func save(_ key: String, _ value: String) -> Bool {
     do {
-      try StateFile.write("{\"version\":1,\"defaultAction\":\"\(action.rawValue)\"}\n", to: url)
-      defaultAction = action
+      let parser = json.objectForKeyedSubscript("JSON")!
+      let config = parser.invokeMethod("parse", withArguments: [try String(contentsOf: url, encoding: .utf8)])!
+      guard json.exception == nil, config.isObject, !config.isArray else { throw CocoaError(.fileReadCorruptFile) }
+      config.setValue(value, forProperty: key)
+      let text = parser.invokeMethod("stringify", withArguments: [config])!.toString()! + "\n"
+      try StateFile.write(text, to: url)
       return true
     } catch {
+      json.exception = nil
       self.error = "Cannot save preferences"
       return false
     }

@@ -14,6 +14,7 @@
   "settingsShortcut": "Settings (? or Ctrl+,)",
   "defaultAction": "Default action",
   "pasteFailed": "Could not paste. Emoji copied to clipboard.",
+  "pasteNeedsAccess": "Allow omoji in System Settings › Privacy & Security › Accessibility to paste. Emoji copied to clipboard.",
   "preferencesFailed": "Preferences unavailable. Enter copies.",
   "copyDescription": "To the clipboard",
   "pasteDescription": "Into the current app"
