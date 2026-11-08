@@ -29,3 +29,11 @@ jobs:
       - run: bash omarchy/bin/omarchy-plugin-validate project
       - run: bash -n scripts/prepare-state && bash -n scripts/read-clipboard && python3 -m py_compile scripts/*.py
         working-directory: project
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: swift test
+        working-directory: macos
+      - run: ./build-app.sh
+        working-directory: macos

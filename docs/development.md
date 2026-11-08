@@ -1,6 +1,6 @@
 # Development
 
-Run native tests and previews in a separate Wayland compositor with a private D-Bus session. The scripts use temporary picker data but do not isolate the desktop themselves.
+Run Quickshell tests and previews in a separate Wayland compositor with a private D-Bus session. The scripts use temporary picker data but do not isolate the desktop themselves.
 
 ```sh
 git clone https://github.com/AksharP5/omoji
@@ -10,9 +10,23 @@ omarchy plugin validate .
 python3 scripts/native-test.py
 ```
 
-Node and Python are development tools only. The picker runs in Omarchy's Quickshell shell.
+Node and Python are development tools only. The Omarchy picker runs in Quickshell.
 
-On macOS, the unit tests also need GNU `timeout`, which Omarchy includes: `brew install coreutils`. Native tests and previews need an Omarchy Wayland session, so they do not run on macOS.
+On macOS, the Node tests also need GNU `timeout`, which Omarchy includes: `brew install coreutils`. Quickshell tests and previews need an Omarchy Wayland session, so they do not run on macOS.
+
+## macOS app
+
+The macOS app in `macos/` runs the same `EmojiSearch.js`, `emojis.json`, and `i18n/en.json` through JavaScriptCore, so search and learning stay identical on both platforms. `OmojiCore` holds the picker behavior without AppKit; the `omoji` target adds the window, menu bar item, global shortcut, clipboard, and paste.
+
+```sh
+cd macos
+swift test
+./build-app.sh
+```
+
+The tests use temporary preferences and history and replace copy and paste, so they do not touch the clipboard or type into other apps. Delayed-paste checks cover reopening and dismissing the picker and making another selection before a pending paste completes.
+
+## Omarchy native checks
 
 The native tests require a running Omarchy Wayland session. They use temporary history and preferences, replace clipboard and paste commands, and suppress the picker window. They cover both default actions, the opposite shortcut, saved preferences, learning across restarts, failed commands, cancellation when reopening, and corrupt files. Catalog failures stay visible after opening, typing, and reopening the picker. Search editing checks cover query limits without losing text or undo history, and keep the cursor visible in long queries. Selection checks cover wrapping when a page step exceeds the result count.
 
