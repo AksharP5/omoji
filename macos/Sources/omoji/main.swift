@@ -5,8 +5,20 @@ import ServiceManagement
 import SwiftUI
 
 final class Model: ObservableObject {
+  struct Option {
+    let title: String
+    let isOn: () -> Bool
+    let set: (Bool) -> Void
+  }
+
   let picker: OmojiCore.Picker
   var onHeight: (CGFloat) -> Void = { _ in }
+  var options: [Option] = []
+  var shortcut: () -> String = { "" }
+  var changeShortcut: () -> Void = {}
+  var needsAccess = false
+  var allowAccess: () -> Void = {}
+  var skipAccess: () -> Void = {}
   init(picker: OmojiCore.Picker) { self.picker = picker }
 }
 
@@ -28,7 +40,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   private var openItem: NSMenuItem!
   private var cardItem: NSMenuItem!
   private var colonItem: NSMenuItem!
+  private var loginItem: NSMenuItem!
   private var askedForAccess = false
+  private var skippedAccess = false
   private var caret: NSRect?
   private var compactHeight: CGFloat = 300
   private var colonModel: ColonModel!
@@ -54,7 +68,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
       return
     }
     model = Model(picker: picker)
-    picker.onChange = { [weak self] in self?.model.objectWillChange.send() }
+    picker.onChange = { [weak self] in
+      guard let self else { return }
+      self.model.needsAccess = self.accessNeeded()
+      self.model.objectWillChange.send()
+    }
     picker.onVisibilityChange = { [weak self] shown in shown ? self?.show() : self?.hide() }
     model.onHeight = { [weak self] height in
       guard let self, picker.card == .compact else { return }
@@ -77,6 +95,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
       guard let self, event.window === self.panel, let key = Self.key(for: event) else { return event }
+      if self.model.needsAccess {
+        if key == .escape { picker.dismiss() } else if key == .enter { self.model.allowAccess() }
+        return nil
+      }
       if key == .tab && !picker.settingsOpen { return nil }
       return picker.handle(key, Self.modifiers(for: event)) ? nil : event
     }
@@ -90,16 +112,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     } else {
       setHotKey(UInt32(kVK_ANSI_E), [.control, .command], "e")
     }
-    if !AXIsProcessTrusted() && (picker.defaultAction == .paste || colonItem.state == .on) { _ = trusted() }
-    if colonItem.state == .on { startColon() }
+    setUpSettings()
+    if colonItem.state == .on && AXIsProcessTrusted() { startColon() }
     picker.open()
   }
 
-  /// Asks for Accessibility at most once per launch, then only checks.
-  private func trusted() -> Bool {
-    guard !askedForAccess else { return AXIsProcessTrusted() }
-    askedForAccess = true
-    return AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary)
+  private func setUpSettings() {
+    model.options = [
+      .init(title: "Compact card", isOn: { [unowned self] in model.picker.card == .compact }, set: { [unowned self] in setCard($0) }),
+      .init(title: "Type : to search emoji", isOn: { [unowned self] in colonItem.state == .on }, set: { [unowned self] in setColon($0) }),
+      .init(title: "Open at login", isOn: { SMAppService.mainApp.status == .enabled }, set: { [unowned self] in setLogin($0) }),
+    ]
+    model.shortcut = { [unowned self] in
+      let modifiers = openItem.keyEquivalentModifierMask
+      let key = openItem.keyEquivalent == " " ? "Space" : openItem.keyEquivalent.uppercased()
+      return [(NSEvent.ModifierFlags.control, "⌃"), (.option, "⌥"), (.shift, "⇧"), (.command, "⌘")]
+        .filter { modifiers.contains($0.0) }.map(\.1).joined() + key
+    }
+    model.changeShortcut = { [unowned self] in
+      model.picker.dismiss()
+      changeShortcut()
+    }
+    model.allowAccess = { [unowned self] in
+      // The first time, macOS's own prompt adds omoji to the Accessibility list; after that, open the list directly.
+      if askedForAccess {
+        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+      } else {
+        askedForAccess = true
+        _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary)
+      }
+    }
+    model.skipAccess = { [unowned self] in
+      skippedAccess = true
+      model.needsAccess = false
+      model.objectWillChange.send()
+    }
+    DistributedNotificationCenter.default().addObserver(forName: NSNotification.Name("com.apple.accessibility.api"),
+                                                        object: nil, queue: .main) { [weak self] _ in
+      // macOS sends this just before the new permission is readable.
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self?.accessChanged() }
+    }
+  }
+
+  private func accessNeeded() -> Bool {
+    !skippedAccess && !AXIsProcessTrusted() && (model.picker.defaultAction == .paste || colonItem.state == .on)
+  }
+
+  private func accessChanged() {
+    guard AXIsProcessTrusted() else { return }
+    model.needsAccess = false
+    model.objectWillChange.send()
+    if colonItem.state == .on && colonTap == nil { startColon() }
   }
 
   func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -129,14 +192,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSPasteboard.general.clearContents()
         return NSPasteboard.general.setString(emoji, forType: .string)
       },
-      paste: { [weak self] isCurrent, done in
+      paste: { isCurrent, done in
         // Let the previous app take focus back before Command-V, as Omarchy waits before Shift+Insert.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
           guard isCurrent() else {
             done(.failed)
             return
           }
-          guard self?.trusted() == true else {
+          guard AXIsProcessTrusted() else {
             done(.needsAccess)
             return
           }
@@ -152,6 +215,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   }
 
   private func show() {
+    model.needsAccess = accessNeeded()
+    if colonItem.state == .on && colonTap == nil && AXIsProcessTrusted() { startColon() }
     let compact = model.picker.card == .compact
     cardItem.state = compact ? .on : .off
     caret = compact ? Self.caretRect() : nil
@@ -228,9 +293,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     colonItem = menu.addItem(withTitle: "Type : to Search Emoji", action: #selector(toggleColon(_:)), keyEquivalent: "")
     colonItem.target = self
     colonItem.state = UserDefaults.standard.bool(forKey: "colonTrigger") ? .on : .off
-    let login = menu.addItem(withTitle: "Open at Login", action: #selector(toggleLogin(_:)), keyEquivalent: "")
-    login.target = self
-    login.state = SMAppService.mainApp.status == .enabled ? .on : .off
+    loginItem = menu.addItem(withTitle: "Open at Login", action: #selector(toggleLogin(_:)), keyEquivalent: "")
+    loginItem.target = self
+    loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
     menu.addItem(.separator())
     menu.addItem(withTitle: "Quit omoji", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
     statusItem.menu = menu
@@ -239,18 +304,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   @objc private func openPicker() { model.picker.open() }
 
   @objc private func toggleCard(_ item: NSMenuItem) {
-    if !model.picker.toggleCard() { NSSound.beep() }
-    item.state = model.picker.card == .compact ? .on : .off
+    setCard(item.state != .on)
+  }
+
+  private func setCard(_ compact: Bool) {
+    if (model.picker.card == .compact) != compact && !model.picker.toggleCard() { NSSound.beep() }
+    cardItem.state = model.picker.card == .compact ? .on : .off
+    if model.picker.opened { show() }
   }
 
   @objc private func toggleColon(_ item: NSMenuItem) {
-    if item.state == .on {
-      stopColon()
-    } else {
-      item.state = .on
-      UserDefaults.standard.set(true, forKey: "colonTrigger")
-      startColon()
-    }
+    setColon(item.state != .on)
+  }
+
+  private func setColon(_ on: Bool) {
+    guard on else { return stopColon() }
+    colonItem.state = .on
+    UserDefaults.standard.set(true, forKey: "colonTrigger")
+    if AXIsProcessTrusted() { return startColon() }
+    skippedAccess = false
+    model.picker.closeSettings()
+    model.picker.opened ? show() : model.picker.open()
   }
 
   @objc private func changeShortcut() {
@@ -292,12 +366,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   }
 
   @objc private func toggleLogin(_ item: NSMenuItem) {
+    setLogin(SMAppService.mainApp.status != .enabled)
+  }
+
+  private func setLogin(_ on: Bool) {
     do {
-      if SMAppService.mainApp.status == .enabled { try SMAppService.mainApp.unregister() } else { try SMAppService.mainApp.register() }
+      if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
     } catch {
       NSLog("omoji: could not change Open at Login: %@", String(describing: error))
     }
-    item.state = SMAppService.mainApp.status == .enabled ? .on : .off
+    loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
   }
 
   private func installHotKeyHandler() {
@@ -361,7 +439,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   }
 
   private func startColon() {
-    _ = trusted()
     let mask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.leftMouseDown.rawValue) | (1 << CGEventType.rightMouseDown.rawValue)
     guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
                                       eventsOfInterest: CGEventMask(mask), callback: { _, type, event, data in

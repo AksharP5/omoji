@@ -57,14 +57,14 @@ cp -R build/omoji.app /Applications/
 open /Applications/omoji.app
 ```
 
-Press **Control-Command-E** to open the picker. The keys are the same as on Omarchy, with **Command-,** for settings and **Command-Return** as well as Control-Return for the other action. The menu bar icon opens the picker and has these options:
+Press **Control-Command-E** to open the picker. The keys are the same as on Omarchy, with **Command-,** for settings and **Command-Return** as well as Control-Return for the other action. The gear in the picker and the menu bar icon both have these options:
 
 - **Change Shortcut…** records a new key combination for the picker.
 - **Compact Card** uses a smaller card that opens at the text cursor when the app reports one.
 - **Type : to Search Emoji** works in any app: type `:` and at least two letters, such as `:rose`. Up and Down select, Return or Tab inserts the emoji, Escape closes the list, and a closing `:` inserts the first result. Terminal apps are skipped. omoji keeps only the current `:` word in memory, never other typing.
 - **Open at Login** starts omoji when you log in.
 
-Paste and Type : need Accessibility permission (System Settings › Privacy & Security › Accessibility). omoji asks at the first launch. Until you allow it, a pasted emoji stays on the clipboard and the picker tells you what to do. Copy works without any permission.
+Paste and Type : need Accessibility permission (System Settings › Privacy & Security › Accessibility). Until you allow it, the picker shows a short guide with an **Open Settings** button before the emoji list. If you choose **Not Now**, a pasted emoji stays on the clipboard and the picker tells you what to do. Copy works without any permission.
 
 Preferences and learning use the same files as on Omarchy. Edits to the preferences file apply the next time the picker opens. To reset learning, quit omoji from the menu bar before you rename the history file. A new version of an app that is not notarized can ask for Accessibility permission again.
 

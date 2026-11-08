@@ -41,7 +41,7 @@ struct PickerView: View {
         .onAppear { picker.pageSize = max(1, Int(geometry.size.height / rowHeight)) }
         .onChange(of: geometry.size.height) { picker.pageSize = max(1, Int($0 / rowHeight)) }
       }
-      .frame(height: compact ? CGFloat(picker.settingsOpen ? 6 : min(6, max(1, picker.results.count))) * rowHeight : nil)
+      .frame(height: compact ? CGFloat(picker.settingsOpen || model.needsAccess ? 9 : min(6, max(1, picker.results.count))) * rowHeight : nil)
       .opacity(picker.settingsOpen ? 0.65 : 1)
       if let status = picker.statusText {
         Text(status).font(.callout).fixedSize(horizontal: false, vertical: true)
@@ -57,6 +57,11 @@ struct PickerView: View {
       }
     }
     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+    .overlay {
+      if model.needsAccess {
+        AccessView(model: model).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+      }
+    }
     .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.separator))
     .fixedSize(horizontal: false, vertical: compact)
     .reportHeight(model.onHeight)
@@ -198,10 +203,51 @@ struct SettingsView: View {
         .disabled(!picker.choicesEnabled)
         .accessibilityAddTraits(picker.defaultAction == action ? .isSelected : [])
       }
+      Divider().padding(.horizontal, 12)
+      ForEach(model.options, id: \.title) { option in
+        Toggle(option.title, isOn: Binding(get: option.isOn, set: {
+          option.set($0)
+          model.objectWillChange.send()
+        }))
+        .toggleStyle(.switch)
+        .controlSize(.small)
+        .padding(.horizontal, 12)
+      }
+      HStack {
+        Text("Shortcut")
+        Spacer()
+        Button(model.shortcut()) { model.changeShortcut() }.controlSize(.small)
+      }
+      .padding(.horizontal, 12)
+      .padding(.bottom, 4)
     }
     .padding(8)
     .frame(width: 280)
     .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 12))
     .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.separator))
+  }
+}
+
+struct AccessView: View {
+  @ObservedObject var model: Model
+
+  var body: some View {
+    VStack(spacing: 12) {
+      Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 56, height: 56)
+      Text("Allow omoji to type for you").font(.title3.weight(.semibold))
+      Text("To paste emoji into your apps, macOS needs you to turn on omoji in System Settings › Privacy & Security › Accessibility.")
+        .multilineTextAlignment(.center)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      HStack {
+        Button("Not Now") { model.skipAccess() }
+        Button("Open Settings") { model.allowAccess() }.buttonStyle(.borderedProminent)
+      }
+    }
+    .controlSize(.large)
+    .frame(maxWidth: 360)
+    .padding(24)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .contentShape(Rectangle())
   }
 }
