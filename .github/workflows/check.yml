@@ -4,7 +4,10 @@ permissions:
   contents: read
 jobs:
   check:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -12,6 +15,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
+      - if: runner.os == 'macOS'
+        run: brew install coreutils
       - run: node --test tests/*.test.js
         working-directory: project
       - uses: actions/checkout@v7
@@ -22,7 +27,7 @@ jobs:
           sparse-checkout: bin/omarchy-plugin-validate
           sparse-checkout-cone-mode: false
       - run: bash omarchy/bin/omarchy-plugin-validate project
-      - run: bash -n scripts/prepare-state && bash -n scripts/read-clipboard && python -m py_compile scripts/*.py
+      - run: bash -n scripts/prepare-state && bash -n scripts/read-clipboard && python3 -m py_compile scripts/*.py
         working-directory: project
   macos:
     runs-on: macos-latest
