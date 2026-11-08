@@ -121,6 +121,18 @@ ShellRoot {
       }
       if ((!picker.preferencesReady && !picker.preferencesError) || !picker.catalog.length || (!picker.historyReady && !picker.learningError) || test.started) return
       test.started = true
+      if (test.phase === "page-navigation") {
+        picker.open("{}")
+        picker.filterText = "rocket"
+        picker.moveSelection(-picker.results.length - 1)
+        if (picker.selectedIndex !== picker.results.length - 1) {
+          test.fail("moving back more than the result count lost the selection"); return
+        }
+        picker.moveSelection(picker.results.length + 1)
+        if (picker.selectedIndex !== 0) { test.fail("moving forward did not wrap to the first result"); return }
+        test.finished = true
+        return
+      }
       if (test.phase === "search-editing") {
         picker.open("{}")
         var panel = picker.data.find(function(item) { return item.objectName === "omoji-window" })
@@ -280,6 +292,7 @@ def main():
         assert json.loads(invalid_config.read_text())["defaultAction"] == "execute"
         run_case(directory, Path(directory) / "catalog-failure-state/history.json", "catalog-failure", omarchy_path)
         run_case(directory, Path(directory) / "search-editing-state/history.json", "search-editing", omarchy_path)
+        run_case(directory, Path(directory) / "page-navigation-state/history.json", "page-navigation", omarchy_path)
         print("Native learning, action defaults, copy/paste, failures, cancellation, persistence and corruption checks passed")
 
 
