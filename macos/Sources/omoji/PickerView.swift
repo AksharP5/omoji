@@ -78,7 +78,7 @@ struct PickerView: View {
 
   private var results: some View {
     ScrollViewReader { proxy in
-      ScrollView {
+      ScrollView(showsIndicators: false) {
         LazyVStack(spacing: 0) {
           ForEach(Array(picker.results.enumerated()), id: \.offset) { index, emoji in
             row(index, emoji)
@@ -143,7 +143,7 @@ struct ColonView: View {
     VStack(alignment: .leading, spacing: 4) {
       Text(":" + (trigger.query ?? "")).font(.system(size: 13)).foregroundStyle(.secondary).padding(.horizontal, 8)
       ScrollViewReader { proxy in
-        ScrollView {
+        ScrollView(showsIndicators: false) {
           LazyVStack(spacing: 0) {
             ForEach(Array(trigger.results.enumerated()), id: \.offset) { index, emoji in
               EmojiRow(emoji: emoji, selected: index == trigger.selectedIndex, hint: "↵", compact: true)
@@ -205,20 +205,32 @@ struct SettingsView: View {
       }
       Divider().padding(.horizontal, 12)
       ForEach(model.options, id: \.title) { option in
-        Toggle(option.title, isOn: Binding(get: option.isOn, set: {
+        Toggle(isOn: Binding(get: option.isOn, set: {
           option.set($0)
           model.objectWillChange.send()
-        }))
+        })) {
+          Text(option.title).frame(maxWidth: .infinity, alignment: .leading)
+        }
         .toggleStyle(.switch)
-        .controlSize(.small)
+        .controlSize(.mini)
         .padding(.horizontal, 12)
+        .padding(.vertical, 2)
       }
       HStack {
         Text("Shortcut")
         Spacer()
-        Button(model.shortcut()) { model.changeShortcut() }.controlSize(.small)
+        Button { model.changeShortcut() } label: {
+          Text(model.shortcut())
+            .font(.system(.callout, design: .rounded).weight(.medium))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+        .help("Change shortcut")
       }
       .padding(.horizontal, 12)
+      .padding(.vertical, 2)
       .padding(.bottom, 4)
     }
     .padding(8)
