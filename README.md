@@ -126,7 +126,7 @@ Use `"copy"` for a copy default. Add `"card": "compact"` for the smaller card. C
 
 Learning: `${XDG_STATE_HOME:-~/.local/state}/omoji/history.json`
 
-The history keeps the 2,000 most recent search/emoji pairs. Files use mode `0600`, directories `0700`, and writes are atomic. Unreadable history is preserved and disables learning while copy and paste keep working. To reset learning, close the picker, rename the history file, and restart the Omarchy shell.
+The history keeps the 2,000 most recent search/emoji pairs. Files use mode `0600`, directories `0700`, and writes are atomic. Existing symbolic links are preserved; saves update their targets. Unreadable history is preserved and disables learning while copy and paste keep working. To reset learning, close the picker, rename the history file, and restart the Omarchy shell.
 
 Only completed copy or paste commands teach the picker. It cannot detect whether an application accepts Shift+Insert. If a paste command fails, the picker returns with an error and the emoji remains on the clipboard.
 
