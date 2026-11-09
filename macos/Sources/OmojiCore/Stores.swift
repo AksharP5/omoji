@@ -101,6 +101,7 @@ public final class PreferencesStore {
   }
 
   func choose(_ action: Action) -> Bool {
+    reload()
     guard error == nil else { return false }
     if action == defaultAction { return true }
     guard save("defaultAction", action.rawValue) else { return false }

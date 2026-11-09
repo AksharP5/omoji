@@ -308,6 +308,34 @@ private final class Fixture {
   #expect(fixture.open().defaultAction == .copy)
 }
 
+@Test func actionChoiceCannotOverwritePreferencesInvalidatedWhileSettingsAreOpen() throws {
+  for edited in ["{\"version\":2,\"defaultAction\":\"paste\"}",
+                 "{\"version\":1,\"defaultAction\":\"execute\"}"] {
+    let fixture = try Fixture()
+    let picker = fixture.open()
+    picker.toggleSettings()
+    try edited.write(to: fixture.configURL, atomically: true, encoding: .utf8)
+    picker.choose(.copy)
+    #expect(try String(contentsOf: fixture.configURL, encoding: .utf8) == edited)
+    #expect(picker.statusText == "Preferences unavailable. Enter copies.")
+    #expect(picker.settingsOpen)
+  }
+}
+
+@Test func actionChoiceHonorsTheRequestAfterAnExternalEdit() throws {
+  let fixture = try Fixture()
+  let picker = fixture.open()
+  picker.toggleSettings()
+  let edited = "{\"version\":1,\"defaultAction\":\"copy\",\"card\":\"compact\",\"future\":[1]}"
+  try edited.write(to: fixture.configURL, atomically: true, encoding: .utf8)
+  picker.choose(.paste)
+  let saved = try JSONSerialization.jsonObject(with: Data(contentsOf: fixture.configURL)) as! NSDictionary
+  #expect(saved == ["version": 1, "defaultAction": "paste", "card": "compact", "future": [1]])
+  #expect(picker.card == .compact)
+  #expect(picker.defaultAction == .paste)
+  #expect(!picker.settingsOpen)
+}
+
 @Test func catalogFailureStaysVisibleWhileSearchingAndReopening() throws {
   let fixture = try Fixture(catalog: "{invalid")
   let picker = fixture.open("flower")
