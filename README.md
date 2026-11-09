@@ -99,6 +99,8 @@ Pasting sends **Shift+Insert** after the picker closes, as Omarchy does. The emo
 | ? / Ctrl+, | Open or close settings |
 | Esc | Leave settings, clear the search, then close |
 
+On macOS, arrow and page keys with modifiers keep the search field's normal editing behavior.
+
 In settings, **C** selects Copy and **P** selects Paste and returns to the picker. You can also use **Up/Down** or **Tab**, then **Enter** or **Space** to apply the highlighted choice and return. Emoji actions are suspended while the menu is open.
 
 ## Learning and privacy
