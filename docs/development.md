@@ -30,6 +30,8 @@ The tests use temporary preferences and history and replace copy and paste, so t
 
 App-level tests classify native event objects and check the event-tap mask without posting keyboard or mouse events.
 
+Modified-navigation tests check that macOS editing shortcuts reach the search field while plain arrow and page keys still navigate results.
+
 ## Omarchy native checks
 
 The native tests require a running Omarchy Wayland session. They use temporary history and preferences, replace clipboard and paste commands, and suppress the picker window. They cover both default actions, the opposite shortcut, saved preferences, learning across restarts, failed commands, cancellation when reopening, and corrupt files. Catalog failures stay visible after opening, typing, and reopening the picker. Search editing checks cover query limits without losing text or undo history, and keep the cursor visible in long queries. Selection checks cover wrapping when a page step exceeds the result count.
