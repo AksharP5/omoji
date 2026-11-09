@@ -17,6 +17,8 @@ spec.loader.exec_module(preview)
 def run_case(directory, state, phase, omarchy_path):
     case_dir = Path(directory) / phase
     case_dir.mkdir()
+    if phase == "paste-running-reopen":
+        (case_dir / "paste-request.started").touch()
     host = preview.prepare_host(case_dir, omarchy_path)
     if phase == "catalog-failure":
         broken_plugin = case_dir / "broken-plugin"
@@ -40,6 +42,7 @@ ShellRoot {
   property int ticks: 0
   property bool started: false
   property bool finished: false
+  property bool reopened: false
   property int compactStep: 0
   property real compactTop: 0
   property real compactWidth: 0
@@ -69,13 +72,27 @@ ShellRoot {
       test.finished = true
     }
   }
+  FileView {
+    path: test.phase === "paste-running-reopen" ? %s : ""
+    watchChanges: true
+    onFileChanged: reload()
+    onLoaded: {
+      if (text() !== "started" || test.reopened) return
+      test.reopened = true
+      picker.open("{}")
+      picker.filterText = "heart"
+      runningPasteCheck.start()
+    }
+  }
   Emojis {
     id: picker
     historyPath: %s
     preferencesPath: %s
     pasteCommand: test.phase === "paste-failure" ? ["false"]
       : test.phase === "paste-start-failure" ? ["/nonexistent/omoji-paste"]
-      : ["bash", "-c", 'printf paste > "$1"', "test", %s]
+      : ["bash", "-c", test.phase === "paste-running-reopen"
+        ? 'printf started > "$1.started"; sleep 0.3; printf paste > "$1"'
+        : 'printf paste > "$1"', "test", %s]
     copyCommand: test.phase === "start-failure" ? ["/nonexistent/omoji-copy"]
       : test.phase === "reopen" ? ["bash", "-c", "sleep 0.3"]
       : [test.phase === "copy-failure" ? "false" : "true"]
@@ -196,7 +213,7 @@ ShellRoot {
       }
       if (test.phase === "preference-restart" && picker.defaultAction !== "copy") { test.fail("default lost on restart"); return }
       if (test.phase === "invalid-preferences" && (!picker.preferencesError || picker.defaultAction !== "copy")) { test.fail("invalid preferences did not safely fall back"); return }
-      if (["reopen", "paste", "ctrl-copy", "ctrl-paste", "paste-failure", "settings-no-activation", "paste-start-failure", "paste-reopen"].indexOf(test.phase) !== -1) picker.open("{}")
+      if (["reopen", "paste", "ctrl-copy", "ctrl-paste", "paste-failure", "settings-no-activation", "paste-start-failure", "paste-reopen", "paste-running-reopen"].indexOf(test.phase) !== -1) picker.open("{}")
       picker.filterText = "flower"
       picker.rebuild()
       if (test.phase === "restart" && picker.results[0].n !== "rose") { test.fail("learning lost after restart"); return }
@@ -282,6 +299,16 @@ ShellRoot {
     }
   }
   Timer {
+    id: runningPasteCheck
+    interval: 450
+    onTriggered: {
+      if (!test.reopened || !picker.opened || picker.filterText !== "heart" || picker.error) {
+        test.fail("cancelled paste changed the reopened search"); return
+      }
+      test.finished = true
+    }
+  }
+  Timer {
     interval: 450
     running: test.started && test.phase === "paste-reopen"
     onTriggered: { test.finished = true }
@@ -292,7 +319,7 @@ ShellRoot {
     onTriggered: { picker.dismiss(); picker.open("{}"); picker.filterText = "heart" }
   }
 }
-''' % (json.dumps(phase), json.dumps(str(preferences.parent)), json.dumps(str(state)), json.dumps(str(preferences)), json.dumps(str(case_dir / "paste-request"))))
+''' % (json.dumps(phase), json.dumps(str(preferences.parent)), json.dumps(str(case_dir / "paste-request.started")), json.dumps(str(state)), json.dumps(str(preferences)), json.dumps(str(case_dir / "paste-request"))))
     env = {**os.environ, "QT_QPA_PLATFORM": "wayland", "OMARCHY_PATH": str(omarchy_path)}
     try:
         result = subprocess.run(["quickshell", "--no-color", "--path", str(host)], env=env, capture_output=True, text=True, timeout=12)
@@ -331,7 +358,7 @@ def main():
         corrupt.write_text("{invalid")
         run_case(directory, corrupt, "corrupt", omarchy_path)
         assert corrupt.read_text() == "{invalid"
-        for phase in ["paste", "ctrl-copy", "ctrl-paste", "paste-failure", "settings-no-activation", "paste-start-failure", "paste-reopen"]:
+        for phase in ["paste", "ctrl-copy", "ctrl-paste", "paste-failure", "settings-no-activation", "paste-start-failure", "paste-reopen", "paste-running-reopen"]:
             action_state = Path(directory) / phase / "history.json"
             run_case(directory, action_state, phase, omarchy_path)
             choices = json.loads(action_state.read_text())["choices"]

@@ -44,6 +44,8 @@ Item {
 
   function open(payloadJson) {
     root.opening += 1
+    pasteDelay.stop()
+    pasteProcess.running = false
     root.error = ""
     root.settingsOpen = false
     root.payloadCard = ""
