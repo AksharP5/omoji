@@ -17,3 +17,23 @@ import Testing
     #expect(trigger.handle(.deleteWord) == .pass)
   }
 }
+
+@Test func invisibleColonQueriesPreserveTheHostEscape() {
+  for text in [":", ":r", ":zz"] {
+    let trigger = ColonTrigger(search: { query in
+      query == "ro" ? [Emoji(e: "<rose>", n: "rose")] : []
+    })
+    for character in text { _ = trigger.handle(.text(character)) }
+    #expect(trigger.query != nil)
+    #expect(!trigger.visible)
+    #expect(trigger.handle(.escape) == .pass)
+    #expect(trigger.query == nil)
+    #expect(trigger.handle(.enter) == .pass)
+  }
+
+  let visible = ColonTrigger(search: { _ in [Emoji(e: "<rose>", n: "rose")] })
+  for character in ":ro" { _ = visible.handle(.text(character)) }
+  #expect(visible.visible)
+  #expect(visible.handle(.escape) == .consume)
+  #expect(visible.query == nil)
+}
