@@ -217,12 +217,12 @@ public final class Picker {
       return true
     }
     switch key {
-    case .down: moveSelection(1)
-    case .up: moveSelection(-1)
+    case .down where modifiers.isEmpty: moveSelection(1)
+    case .up where modifiers.isEmpty: moveSelection(-1)
     case .character("n") where modifiers == .control: moveSelection(1)
     case .character("p") where modifiers == .control: moveSelection(-1)
-    case .pageDown: moveSelection(max(1, pageSize))
-    case .pageUp: moveSelection(-max(1, pageSize))
+    case .pageDown where modifiers.isEmpty: moveSelection(max(1, pageSize))
+    case .pageUp where modifiers.isEmpty: moveSelection(-max(1, pageSize))
     case .enter:
       if !queryTooLong {
         activate(selectedIndex, modifiers.contains(.control) || modifiers.contains(.command)
