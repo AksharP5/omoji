@@ -515,9 +515,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
           app != Bundle.main.bundleIdentifier, !Self.terminals.contains(app) else { return Unmanaged.passUnretained(event) }
     let trigger = colonModel.trigger
     let tracking = trigger.query != nil
-    // Press-and-hold drops letter repeats in the app, so counting them would delete text before the colon later.
-    if tracking, type == .keyDown, event.getIntegerValueField(.keyboardEventAutorepeat) != 0,
-       case .text = Self.colonKey(event) { return nil }
     let action = trigger.handle(type == .keyDown ? Self.colonKey(event) : .other)
     if tracking || trigger.query != nil { DispatchQueue.main.async { self.refreshColon() } }
     switch action {
@@ -566,7 +563,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     case kVK_Tab: return .tab
     case kVK_Escape: return .escape
     default:
-      guard event.flags.intersection([.maskCommand, .maskControl]).isEmpty,
+      // Hosts may turn held letters into accent input instead of repeated text.
+      guard event.getIntegerValueField(.keyboardEventAutorepeat) == 0,
+            event.flags.intersection([.maskCommand, .maskControl]).isEmpty,
             let characters = NSEvent(cgEvent: event)?.characters, characters.count == 1,
             // Arrow, Home, Page and F keys move the caret or do nothing; they are not text.
             !(0xF700...0xF8FF).contains(characters.unicodeScalars.first!.value) else { return .other }
