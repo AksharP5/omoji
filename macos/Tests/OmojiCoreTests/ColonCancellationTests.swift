@@ -22,12 +22,14 @@ import Testing
   for text in [":", ":r", ":zz"] {
     let trigger = ColonTrigger(search: { query in
       query == "ro" ? [Emoji(e: "<rose>", n: "rose")] : []
-    })
+    }, textBeforeCaret: { "" })
     for character in text { _ = trigger.handle(.text(character)) }
     #expect(trigger.query != nil)
     #expect(!trigger.visible)
     #expect(trigger.handle(.escape) == .pass)
     #expect(trigger.query == nil)
+    _ = trigger.handle(.text(":"))
+    #expect(trigger.query == "")
     #expect(trigger.handle(.enter) == .pass)
   }
 

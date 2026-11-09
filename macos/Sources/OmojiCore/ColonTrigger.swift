@@ -71,8 +71,9 @@ public final class ColonTrigger {
       finish(boundary: true)
       return action
     case .escape:
-      finish(boundary: false)
-      return .consume
+      let wasVisible = visible
+      finish(boundary: wasVisible ? false : nil)
+      return wasVisible ? .consume : .pass
     default:
       if case .text(let character) = key { finish(boundary: Self.isBoundary(character)) } else { finish(boundary: nil) }
       return .pass
