@@ -20,11 +20,12 @@ enum StateFile {
   }
 
   static func write(_ text: String, to url: URL) throws {
-    let temporary = url.deletingLastPathComponent().appendingPathComponent("." + url.lastPathComponent + "." + UUID().uuidString)
+    let destination = url.resolvingSymlinksInPath()
+    let temporary = destination.deletingLastPathComponent().appendingPathComponent("." + destination.lastPathComponent + "." + UUID().uuidString)
     guard FileManager.default.createFile(atPath: temporary.path, contents: Data(text.utf8), attributes: [.posixPermissions: 0o600]) else {
       throw CocoaError(.fileWriteUnknown)
     }
-    if rename(temporary.path, url.path) != 0 {
+    if rename(temporary.path, destination.path) != 0 {
       try? FileManager.default.removeItem(at: temporary)
       throw CocoaError(.fileWriteUnknown)
     }
